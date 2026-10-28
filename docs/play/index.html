@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Resize, compress and convert photos, and strip the GPS before you share them — on your device, with nothing uploaded.">
+<meta name="theme-color" content="#0f1115">
+<title>Image Toolkit — resize, compress, convert, strip the GPS</title>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--ink:#e7e9ee;--mut:#9aa3b2;--line:#252a34;--acc:#22c55e;--warn:#f59e0b;--bad:#ef4444}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+  header,main,footer{max-width:760px;margin:0 auto;padding:18px 20px}
+  h1{margin:0 0 2px;font-size:22px;letter-spacing:-.01em}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 10px;font-weight:600}
+  .mut{color:var(--mut)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:520px){.grid{grid-template-columns:1fr}}
+  label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px;letter-spacing:.03em}
+  input,select,button{font:inherit;color:var(--ink);background:#0c0e12;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+  input[type=checkbox]{width:auto;margin-right:8px}
+  input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  button{background:var(--acc);color:#06210f;border:0;font-weight:600;cursor:pointer;width:auto;padding:9px 14px}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
+  button:disabled{opacity:.55;cursor:default}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+  .row > div{flex:1 1 140px}
+  .drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--mut);cursor:pointer}
+  .drop.over{border-color:var(--acc);color:var(--ink)}
+  .item{border-top:1px solid var(--line);padding:12px 0}
+  .item:first-child{border-top:0}
+  .name{font-weight:600;word-break:break-all}
+  .meta{font-size:13px;color:var(--mut)}
+  .num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .badge{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;margin:4px 6px 0 0;border:1px solid var(--line)}
+  .badge.good{color:var(--acc);border-color:#1d5c37}
+  .badge.warn{color:var(--warn);border-color:#5c4718}
+  .badge.bad{color:var(--bad);border-color:#5c2020}
+  .err{color:var(--bad);font-size:14px}
+  .plan{font-size:13px;color:var(--mut);margin:6px 0 0;padding-left:18px}
+  .plan li{margin:1px 0}
+  footer{color:var(--mut);font-size:13px}
+  kbd{background:#0c0e12;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px;font-family:inherit}
+</style>
+</head>
+<body>
+<header>
+  <h1>Image Toolkit</h1>
+  <p class="mut">Resize, compress and convert photos — and strip the GPS out of them — on this device. Nothing is uploaded, ever.</p>
+</header>
+
+<main>
+  <section class="card" aria-labelledby="h-opts">
+    <h2 id="h-opts">What to do</h2>
+    <div class="grid">
+      <div>
+        <label for="maxw">Longest side, px (0 = keep)</label>
+        <input id="maxw" type="number" min="0" step="50" value="1600" inputmode="numeric">
+      </div>
+      <div>
+        <label for="target">Target size, KB (0 = best quality)</label>
+        <input id="target" type="number" min="0" step="50" value="500" inputmode="numeric">
+      </div>
+      <div>
+        <label for="format">Output format</label>
+        <select id="format">
+          <option value="keep">Keep the format</option>
+          <option value="jpeg">JPEG</option>
+          <option value="webp">WebP</option>
+          <option value="png">PNG</option>
+        </select>
+      </div>
+      <div>
+        <label for="strip">Privacy</label>
+        <label style="font-size:14px;color:var(--ink)"><input id="strip" type="checkbox" checked> Remove GPS and metadata</label>
+      </div>
+    </div>
+    <p class="mut" style="font-size:13px;margin:10px 0 0">Your photos stay on this device — the whole point of stripping the location is that the file never travels to a server to be stripped.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-drop">
+    <h2 id="h-drop">Photos</h2>
+    <label class="drop" id="drop" for="files">Drop photos here, or click to choose them</label>
+    <input id="files" type="file" accept="image/*" multiple hidden>
+    <div class="row" style="margin-top:12px">
+      <button id="run" disabled>Process</button>
+      <button id="clear" class="ghost" type="button">Clear</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-out">
+    <h2 id="h-out">Results</h2>
+    <div id="results"><p class="mut">Nothing processed yet.</p></div>
+  </section>
+</main>
+
+<footer>
+  Built with web-kit + export-kit · <span class="num">0 bytes</span> leave this page · © 2026 Dr Sohil Momin
+</footer>
+
+<script src="web-kit.js"></script>
+<script src="export-kit.js"></script>
+<script src="imgtool.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { files: [] };
+  var MIME = { jpeg: "image/jpeg", webp: "image/webp", png: "image/png" };
+
+  /* ------------------------------------------------------------- picking */
+
+  function addFiles(list) {
+    for (var i = 0; i < list.length; i++) state.files.push(list[i]);
+    $("run").disabled = state.files.length === 0;
+    renderQueue();
+  }
+
+  function renderQueue() {
+    if (!state.files.length) { $("results").innerHTML = '<p class="mut">Nothing processed yet.</p>'; return; }
+    var html = state.files.map(function (f, i) {
+      return '<div class="item" data-q="' + i + '"><div class="name">' + esc(f.name) + '</div>' +
+        '<div class="meta num">' + ImgTool.formatBytes(f.size) + '</div></div>';
+    }).join("");
+    $("results").innerHTML = html;
+  }
+
+  $("files").addEventListener("change", function (e) { addFiles(e.target.files); });
+  $("drop").addEventListener("click", function () { $("files").click(); });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    $("drop").addEventListener(ev, function (e) { e.preventDefault(); $("drop").classList.add("over"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    $("drop").addEventListener(ev, function (e) { e.preventDefault(); $("drop").classList.remove("over"); });
+  });
+  $("drop").addEventListener("drop", function (e) {
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+  $("clear").addEventListener("click", function () {
+    state.files = []; $("files").value = ""; $("run").disabled = true; renderQueue();
+  });
+
+  /* ------------------------------------------------------------- drawing */
+
+  function decode(blob) {
+    if (typeof createImageBitmap === "function") return createImageBitmap(blob);
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("this file could not be drawn")); };
+      img.src = url;
+    });
+  }
+
+  function toBlob(canvas, mime, quality) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (b) {
+        if (!b) reject(new Error("the browser could not encode " + mime));
+        else resolve(b);
+      }, mime, quality);
+    });
+  }
+
+  /* ---------------------------------------------------------- processing */
+
+  function processOne(file, opts) {
+    var before = file.size;
+    return file.arrayBuffer().then(function (buf) {
+      var bytes = new Uint8Array(buf);
+      var info = ImgTool.sniff(bytes);
+      if (!info) throw new Error("this is not an image we can open (it reports " + (file.type || "no type") + ")");
+      if (!info.supported) throw new Error("HEIC/HEIF cannot be drawn by a browser, so it cannot be converted here — export it as JPEG from Photos first");
+
+      var dim = ImgTool.dimensions(bytes);
+      var gps = ImgTool.hasGps(bytes);
+      var tags = ImgTool.exifTags(bytes);
+      var cleaned = opts.strip ? ImgTool.stripMetadata(bytes) : { bytes: bytes, removed: [] };
+
+      return decode(new Blob([cleaned.bytes], { type: info.mime })).then(function (img) {
+        var w = img.width || (dim && dim.width) || 0;
+        var h = img.height || (dim && dim.height) || 0;
+        var box = ImgTool.fit(w, h, opts.maxW, opts.maxW);
+        var canvas = document.createElement("canvas");
+        canvas.width = box.width || w;
+        canvas.height = box.height || h;
+        var ctx = canvas.getContext("2d");
+        ctx.imageSmoothingQuality = "high";
+        if (!opts.strip && info.format === "jpeg") {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        var outFormat = opts.format === "keep" ? info.format : opts.format;
+        if (outFormat !== "jpeg" && outFormat !== "webp" && outFormat !== "png") outFormat = "jpeg";
+        var mime = MIME[outFormat];
+
+        var encoded;
+        if (outFormat === "png" || !opts.targetBytes) {
+          encoded = toBlob(canvas, mime, 0.92).then(function (b) { return { blob: b, quality: null, fits: true }; });
+        } else {
+          encoded = ImgTool.budget(opts.targetBytes, function (q) {
+            return toBlob(canvas, mime, q).then(function (b) { return { size: b.size, blob: b }; });
+          }, { steps: 6 }).then(function (r) {
+            return { blob: r.out.blob, quality: r.quality, fits: r.fits };
+          });
+        }
+        return encoded.then(function (out) {
+          return {
+            name: file.name, before: before, after: out.blob.size, blob: out.blob, mime: mime,
+            format: outFormat, width: canvas_of(box, dim, file), gps: gps, tags: tags,
+            removed: cleaned.removed, quality: out.quality, fits: out.fits !== false
+          };
+        });
+      });
+    });
+  }
+
+  // The size the result actually has, for the line the user reads.
+  function canvas_of(box, dim, file) {
+    if (box && box.width) return { width: box.width, height: box.height };
+    return dim || null;
+  }
+
+  function run() {
+    var opts = {
+      maxW: Math.max(0, parseInt($("maxw").value, 10) || 0),
+      targetBytes: Math.max(0, parseInt($("target").value, 10) || 0) * 1024,
+      format: $("format").value,
+      strip: $("strip").checked
+    };
+    var files = state.files.slice();
+    if (!files.length) return;
+    $("run").disabled = true;
+    $("results").innerHTML = '<p class="mut">Working — nothing is being uploaded.</p>';
+
+    var rows = files.map(function (f) { return { file: f, status: "waiting" }; });
+    renderRows(rows, opts);
+
+    var chain = Promise.resolve();
+    rows.forEach(function (row, i) {
+      chain = chain.then(function () {
+        row.status = "working"; renderRows(rows, opts);
+        return processOne(row.file, opts).then(function (r) {
+          row.status = "done"; row.result = r;
+        }).catch(function (err) {
+          row.status = "error"; row.error = err && err.message ? err.message : String(err);
+        }).then(function () { renderRows(rows, opts); });
+      });
+    });
+    chain.then(function () {
+      $("run").disabled = false;
+      rows.forEach(function (row) {
+        if (row.status === "done") logPlan(row.result, opts);
+      });
+    });
+  }
+
+  function renderRows(rows, opts) {
+    $("results").innerHTML = rows.map(function (row, i) {
+      var head = '<div class="name">' + esc(row.file.name) + '</div>';
+      if (row.status === "waiting") return '<div class="item">' + head + '<div class="meta num">' + ImgTool.formatBytes(row.file.size) + '</div></div>';
+      if (row.status === "working") return '<div class="item">' + head + '<div class="meta">Working…</div></div>';
+      if (row.status === "error") return '<div class="item">' + head + '<div class="err">' + esc(row.error) + '</div></div>';
+
+      var r = row.result;
+      var saved = r.before > 0 ? Math.round((1 - r.after / r.before) * 100) : 0;
+      var badges = "";
+      if (r.gps) badges += '<span class="badge good">GPS removed</span>';
+      else if (r.removed.length) badges += '<span class="badge good">metadata removed</span>';
+      if (r.gps === false && !r.tags.length && opts.strip && r.format === "jpeg") badges += '<span class="badge warn">metadata unreadable — could not confirm what it held</span>';
+      if (r.quality !== null && r.quality !== undefined) badges += '<span class="badge">quality ' + Math.round(r.quality * 100) + '</span>';
+      if (r.fits === false) badges += '<span class="badge warn">could not reach the target</span>';
+
+      var dim = r.width ? r.width.width + " × " + r.width.height : "";
+      var download = '<button class="ghost" data-dl="' + i + '">Download</button>';
+
+      return '<div class="item">' + head +
+        '<div class="meta num">' + ImgTool.formatBytes(r.before) + ' → ' + ImgTool.formatBytes(r.after) +
+        (saved > 0 ? '  (' + saved + '% smaller)' : '') + (dim ? '  ·  ' + dim : '') + '</div>' +
+        badges +
+        '<div style="margin-top:8px">' + download + '</div></div>';
+    }).join("");
+
+    Array.prototype.forEach.call($("results").querySelectorAll("[data-dl]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var row = rows[parseInt(btn.getAttribute("data-dl"), 10)];
+        if (!row || !row.result) return;
+        try {
+          var ext = row.result.format === "jpeg" ? "jpg" : row.result.format;
+          Export.blob(ImgTool.outName(row.file.name, ext), row.result.blob, row.result.mime);
+        } catch (e) {
+          btn.textContent = "The file was not written";
+          btn.title = (e && e.message) || "the browser refused the download";
+        }
+      });
+    });
+  }
+
+  function logPlan(r, opts) {
+    // The plan is shown in the title so a screen reader and a curious user both get it.
+    var steps = ImgTool.plan({
+      format: r.format, width: r.width ? r.width.width : 0,
+      hasGps: r.gps, hasExif: r.tags.length > 0
+    }, { maxW: opts.maxW, targetKB: opts.targetBytes ? Math.round(opts.targetBytes / 1024) : 0, format: opts.format === "keep" ? null : opts.format });
+    var el = $("results").querySelector(".item");
+    if (el) el.setAttribute("title", steps.join(" · "));
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  $("run").addEventListener("click", run);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !$("run").disabled) run();
+  });
+})();
+</script>
+</body>
+</html>
