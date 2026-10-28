@@ -1,5 +1,11 @@
 # Image Toolkit
 
+<!-- shot:start -->
+
+![Screenshot](docs/shot.png)
+
+<!-- shot:end -->
+
 [![live](https://img.shields.io/badge/live-online-22c55e)](https://drsamonline.github.io/app-image-toolkit/)
 [![license](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-informational)](LICENSE)
 
