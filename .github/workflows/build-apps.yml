@@ -37,3 +37,29 @@ jobs:
       contents: write
       pages: write
       id-token: write
+
+  # The kit ships an EXE, an APK and a Linux binary. This app can also be one
+  # HTML file that runs from a USB stick with no server at all, so that form
+  # belongs on the release too — built here rather than by hand, so it can never
+  # be a version behind the other three.
+  single-file:
+    needs: app
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # was @v4
+      - name: Fold the app into one file
+        run: python3 scripts/bundle.py
+      - name: Check it is really one file
+        run: |
+          set -euo pipefail
+          test -s dist/image-toolkit.html
+          ! grep -qE '<script[^>]* src=|<link[^>]* rel="manifest"' dist/image-toolkit.html
+          echo "one file, $(wc -c < dist/image-toolkit.html) bytes" >> "$GITHUB_STEP_SUMMARY"
+      - name: Attach it to the rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload app-latest dist/image-toolkit.html --clobber

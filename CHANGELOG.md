@@ -3,6 +3,21 @@
 Every entry names what changed and the assertion count at that tag. The count is
 the number `node test-node.js` printed, not an estimate.
 
+## 1.3.2 — 2026-11-01
+
+The release carries a fourth thing.
+
+- **The one-file build is now an artifact of the pipeline**, not something to run
+  by hand. A job after the kit builds `dist/image-toolkit.html` — the whole app,
+  every script inlined, no manifest link, nothing to fetch — checks that it really
+  is one file, and attaches it to the rolling release beside the EXE, the APK and
+  the Linux binary. It can never be a version behind the other three, because it
+  comes from the same commit and the same job graph.
+
+The file opens from a USB stick, from an email attachment, from a phone's
+Downloads folder, with no server and no install. 138 KB, zero external
+references.
+
 ## 1.3.1 — 2026-11-01
 
 The final audit of the code the last three releases added — the PDF writer, the

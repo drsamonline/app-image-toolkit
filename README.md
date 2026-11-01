@@ -88,6 +88,10 @@ python3 scripts/shot.py --help         # screenshots of pages that have settled
 
 There is no build step. `docs/play/` is the app. `RELEASING.md` is the six-step release.
 
+The rolling release carries four things built from the same commit: the portable
+EXE, the Android APK, the Linux binary, and `image-toolkit.html` — the whole app
+as one file, which opens from a USB stick with no server at all.
+
 ## Layout
 
 ```

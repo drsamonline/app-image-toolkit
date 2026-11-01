@@ -31,7 +31,12 @@ git push origin main
 The push is the release. `Build + deploy` builds the portable EXE, the APK and
 the Linux binary from that commit, publishes them to the rolling `app-latest`
 release, deploys `docs/` to Pages and re-shoots `docs/shot.png` from the live
-demo — so the release, the demo and the screenshot can never disagree. There is
+demo — so the release, the demo and the screenshot can never disagree.
+
+A second job then folds the app into one HTML file and attaches it to the same
+release as `image-toolkit.html`. It is built by the pipeline rather than by hand
+for one reason: a fourth artifact made on a laptop is a fourth artifact that will
+be a version behind the other three. There is
 no separate tagging step and no hand-made release; the rolling release is the
 estate's convention and the pipeline keeps it honest.
 
@@ -41,7 +46,7 @@ Then, in order:
   phone**, not just on the desktop. The footer prints the version: if it does not
   say the new one, the service worker is the reason, and the cache name is the
   fix.
-- Check the `app-latest` release carries the three binaries from that commit.
+- Check the `app-latest` release carries all four: the three binaries and `image-toolkit.html`.
 - Check the badges against the repo: the test count must be the number the suite
   printed, and `deps` must still read `0 runtime`.
 

@@ -11,7 +11,7 @@
  *
  * PolyForm Noncommercial 1.0.0. (c) 2026 Dr Sohil Momin.
  */
-var CACHE = "image-toolkit-v1.3.1";     // bumped from VERSION by scripts/version.py
+var CACHE = "image-toolkit-v1.3.2";     // bumped from VERSION by scripts/version.py
 
 var ASSETS = [
   "./",
