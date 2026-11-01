@@ -26,7 +26,14 @@ Two honest limits, stated because the app says them too:
 
 `docs/play/web-kit.js` and `docs/play/export-kit.js` are copied in from
 `drsamonline/web-kit` and `drsamonline/export-kit` so the app runs offline as
-plain files. They are MIT; the copies here are unmodified.
+plain files. They are MIT; the copies here are unmodified — and "unmodified" is
+checked rather than remembered. `node test-node.js` hashes both files and fails
+if either stops matching the digests below.
+
+| file | sha256 |
+|---|---|
+| `docs/play/web-kit.js` | `e690c987da7d267267d122e9a4b27cf922aade7c295733c5737784d370e6b50d` |
+| `docs/play/export-kit.js` | `4fb15af441bd02d442f38b9e76edb1959aeb105b12f816a26979a0ad5d7ffc53` |
 
 ## The data
 

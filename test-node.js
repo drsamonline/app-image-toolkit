@@ -15,6 +15,7 @@
 var fs = require("fs");
 var path = require("path");
 var zlib = require("zlib");
+var crypto = require("crypto");
 var T = require("./docs/play/imgtool.js");
 
 var passed = 0, failed = 0;
@@ -177,17 +178,119 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   });
 }).then(function () {
   /* ---------------------------------------------------------------- */
+  section("the built-in sample carries a real GPS fix");
+
+  var clean = T.stripMetadata(FIXTURE).bytes;
+  ok("the fixture, stripped, has no GPS left", T.hasGps(clean) === false);
+  var sample = T.attachExif(clean, T.exifWithGps());
+  ok("the demo EXIF block gives a clean photo a GPS block", T.hasGps(sample) === true);
+  var demoTags = T.exifTags(sample);
+  ok("with the camera tags a camera writes", demoTags.indexOf(0x010F) >= 0 && demoTags.indexOf(0x0110) >= 0);
+  ok("and the GPS IFD pointer among them", demoTags.indexOf(0x8825) >= 0);
+  var delta = 4 + T.exifWithGps().length;
+  ok("the block is exactly one APP1 segment", sample.length - clean.length === delta, sample.length - clean.length);
+  ok("the pixels are untouched: every byte after the marker is the original",
+    Buffer.from(sample.subarray(2 + delta)).equals(Buffer.from(clean.subarray(2))));
+  var restripped = T.stripMetadata(sample);
+  eq("stripping it again removes exactly that", restripped.removed, ["exif"]);
+  ok("and leaves the file as it was before",
+    restripped.bytes.length === clean.length && T.hasGps(restripped.bytes) === false);
+  var refused = false;
+  try { T.attachExif(Buffer.from("not a jpeg"), T.exifWithGps()); } catch (e) { refused = /JPEG/.test(e.message); }
+  ok("attaching to something that is not a JPEG is refused", refused);
+}).then(function () {
+  /* ---------------------------------------------------------------- */
+  section("the tag that says which way up the photo was");
+
+  // A little-endian TIFF with one entry in IFD0: Orientation (0x0112), a SHORT.
+  function exifWithOrientation(value) {
+    var tiff = Buffer.alloc(26);
+    tiff.write("II", 0, "ascii"); tiff.writeUInt16LE(42, 2); tiff.writeUInt32LE(8, 4);
+    tiff.writeUInt16LE(1, 8);
+    tiff.writeUInt16LE(0x0112, 10); tiff.writeUInt16LE(3, 12); tiff.writeUInt32LE(1, 14); tiff.writeUInt16LE(value, 18);
+    tiff.writeUInt32LE(0, 22);
+    return Buffer.concat([Buffer.from("Exif\u0000\u0000", "binary"), tiff]);
+  }
+
+  var bare = T.stripMetadata(FIXTURE).bytes;
+  eq("a photo with no orientation tag is upright", T.orientation(bare), 1);
+  var sideways = T.attachExif(bare, exifWithOrientation(6));
+  eq("a photo the camera said to turn reads as 6", T.orientation(sideways), 6);
+  var mirrored = T.attachExif(bare, exifWithOrientation(2));
+  eq("and a mirrored one reads as 2", T.orientation(mirrored), 2);
+  eq("the plan says so before any work", T.plan({ format: "jpeg", width: 100, orientation: 6 }, {}),
+    ["turn the photo upright"]);
+  ok("and the tag is still removed by the strip", T.orientation(T.stripMetadata(sideways).bytes) === 1);
+
+  /* ---------------------------------------------------------------- */
+  section("the claim, checked on the output, not the input");
+
+  ok("the fixture is not clean", T.isClean(FIXTURE) === false);
+  eq("and it says what is in there", T.remaining(FIXTURE), ["exif"]);
+  ok("the stripped file is clean", T.isClean(T.stripMetadata(FIXTURE).bytes) === true);
+  eq("with nothing left to name", T.remaining(T.stripMetadata(FIXTURE).bytes), []);
+
+  /* ---------------------------------------------------------------- */
+  section("the colour profile is kept, unless asked otherwise");
+
+  function pngWith(type, data) {
+    var sig = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    var ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(1200, 0); ihdr.writeUInt32BE(800, 4);
+    ihdr[8] = 8; ihdr[9] = 6;
+    return Buffer.concat([sig, pngChunk("IHDR", ihdr), pngChunk(type, data),
+      pngChunk("IDAT", Buffer.from("x", "ascii")), pngChunk("IEND", Buffer.alloc(0))]);
+  }
+  function hasChunk(bytes, type) {
+    return T.pngChunks(bytes).some(function (c) { return c.type === type; });
+  }
+
+  var withIcc = pngWith("iCCP", Buffer.from("a colour profile", "ascii"));
+  ok("an iCCP chunk survives the ordinary strip", hasChunk(T.stripMetadata(withIcc).bytes, "iCCP"));
+  var dropped = T.stripMetadata(withIcc, { keepColour: false });
+  ok("and goes when the colour is dropped too", hasChunk(dropped.bytes, "iCCP") === false);
+  eq("and the strip names it", dropped.removed, ["iCCP"]);
+  eq("a profile is not privacy, so it is not reported as removed", T.stripMetadata(withIcc).removed, []);
+
+  /* ---------------------------------------------------------------- */
+  section("the zip is a zip, not a pile of bytes");
+
+  eq("crc32 of \"hello\" is the known value", T.crc32(Buffer.from("hello")).toString(16), "3610a686");
+  var zipped = Buffer.from(T.zip([
+    { name: "a.jpg", bytes: Buffer.from("hello") },
+    { name: "b.txt", bytes: Buffer.from("world!") }
+  ]));
+  eq("the end record is where a reader looks for it", zipped.readUInt32LE(zipped.length - 22), 0x06054b50);
+  eq("it holds two entries", zipped.readUInt16LE(zipped.length - 22 + 10), 2);
+  eq("the first local header is a local header", zipped.readUInt32LE(0), 0x04034b50);
+  ok("and both names are in it", zipped.toString("binary").indexOf("a.jpg") > 0 &&
+    zipped.toString("binary").indexOf("b.txt") > 0);
+  eq("the first entry is stored, not deflated", zipped.readUInt16LE(8), 0);
+
+  /* ---------------------------------------------------------------- */
+  section("the search, as a curve");
+
+  return T.budget(500000, fakeEncoder(4000000), { steps: 6 }).then(function (r) {
+    eq("every encoder call is reported", r.history.length, r.tries);
+    ok("each one carrying its quality and its size", r.history.every(function (p) {
+      return typeof p.quality === "number" && typeof p.size === "number";
+    }));
+    ok("the point it chose is in the curve", r.history.some(function (p) { return p.quality === r.quality; }));
+  });
+}).then(function () {
+  /* ---------------------------------------------------------------- */
   section("what the page promises");
 
   var dir = path.join(__dirname, "docs", "play");
-  ["index.html", "imgtool.js", "web-kit.js", "export-kit.js"].forEach(function (file) {
+  ["index.html", "imgtool.js", "web-kit.js", "export-kit.js", "sample.js", "i18n.js", "version.js", "app.js", "sw.js", "manifest.webmanifest"].forEach(function (file) {
     ok("docs/play/" + file + " exists", fs.existsSync(path.join(dir, file)) && fs.statSync(path.join(dir, file)).size > 0);
   });
   var html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
-  ["imgtool.js", "web-kit.js", "export-kit.js"].forEach(function (file) {
+  ["imgtool.js", "web-kit.js", "export-kit.js", "sample.js", "i18n.js", "version.js", "app.js"].forEach(function (file) {
     ok("the page loads " + file, html.indexOf('src="' + file + '"') >= 0);
   });
-  ["files", "maxw", "target", "format", "strip", "run", "results"].forEach(function (id) {
+  ["files", "maxw", "target", "format", "strip", "run", "results", "sample", "theme",
+   "preset", "keepColour", "rotate", "crop", "zipBtn", "counter", "lang"].forEach(function (id) {
     ok("the page has the " + id + " control", html.indexOf('id="' + id + '"') >= 0);
   });
   ok("the page works on a phone", html.indexOf('name="viewport"') >= 0);
@@ -198,6 +301,112 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   });
   eq("the page loads nothing from the network", external, []);
   ok("the page says the photos never leave the device", /never leaves|stays on (your|the) device|nothing is uploaded/i.test(html));
+  var appSrc = fs.readFileSync(path.join(dir, "app.js"), "utf8");
+  ok("the page can be driven by name, for the landing page's demo", /ImageToolkit\s*=\s*\{/.test(appSrc) && /demo:\s*demo/.test(appSrc));
+  ok("and it opens on the sample when asked", /sample=1/.test(appSrc));
+  ok("the results area is announced, not just drawn", html.indexOf('aria-live="polite"') >= 0);
+  ok("the app counts what leaves the page", appSrc.indexOf("externalRequests") >= 0);
+}).then(function () {
+  /* ---------------------------------------------------------------- */
+  section("the landing page is a page, not the app");
+
+  var sitePath = path.join(__dirname, "docs", "index.html");
+  ok("docs/index.html exists", fs.existsSync(sitePath) && fs.statSync(sitePath).size > 0);
+  var page = fs.readFileSync(sitePath, "utf8");
+  ok("it is not the app — the app is at docs/play/", page.indexOf("play/?sample=1") >= 0 && page.indexOf('id="results"') < 0);
+  ok("it links to the app", page.indexOf('href="play/"') >= 0);
+  ok("no badge comes from an image service", !/img\.shields\.io|badge\.fury|badgen\.net/.test(page));
+  var wanted = page.match(/assets\/badge-[a-z]+\.svg/g) || [];
+  ok("the page shows the badges", wanted.length >= 5, wanted.length + " references");
+  eq("and every one of them exists on disk", wanted.filter(function (b) {
+    return !fs.existsSync(path.join(__dirname, "docs", b));
+  }), []);
+  var fromNetwork = (page.match(/https?:\/\/[^"'\s)]+/g) || []).filter(function (u) {
+    return !/drsamonline\.github\.io|github\.com|w3\.org|schema\.org|ns\.adobe\.com|localhost|127\.0\.0\.1/.test(u);
+  });
+  eq("the landing page loads nothing from the network either", fromNetwork, []);
+  ok("the demo has a poster behind the frame", fs.existsSync(path.join(__dirname, "docs", "assets", "app-desktop.png")));
+}).then(function () {
+  /* ---------------------------------------------------------------- */
+  section("the repository keeps the promise, not only the page");
+
+  function walk(dir, out) {
+    fs.readdirSync(dir).forEach(function (name) {
+      var full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) walk(full, out);
+      else out.push(full);
+    });
+    return out;
+  }
+
+  var shipped = walk(path.join(__dirname, "docs"), []).filter(function (f) {
+    return /\.(html|js|css|webmanifest|json)$/.test(f);
+  });
+  var offenders = [];
+  shipped.forEach(function (file) {
+    var text = fs.readFileSync(file, "utf8");
+    var name = path.basename(file);
+    var urls = (text.match(/https?:\/\/[^"'\s)]+/g) || []).filter(function (u) {
+      return !/drsamonline\.github\.io|github\.com|w3\.org|schema\.org|ns\.adobe\.com|localhost|127\.0\.0\.1/.test(u);
+    });
+    if (urls.length) offenders.push(name + ": " + urls.join(" "));
+    if (/@import\s+url\(\s*["']?https?:/.test(text)) offenders.push(name + ": remote @import");
+    // sw.js is the one file allowed to call fetch: it is the offline worker, and
+    // it only ever answers from the cache it wrote itself.
+    if (/\bfetch\s*\(/.test(text) && name !== "sw.js") offenders.push(name + ": fetch(");
+    if (/XMLHttpRequest/.test(text)) offenders.push(name + ": XMLHttpRequest");
+  });
+  eq("nothing under docs/ reaches the network", offenders, []);
+
+  section("the vendored kits are the ones NOTICE.md says they are");
+  var notice = fs.readFileSync(path.join(__dirname, "NOTICE.md"), "utf8");
+  ["web-kit.js", "export-kit.js"].forEach(function (name) {
+    var digest = crypto.createHash("sha256")
+      .update(fs.readFileSync(path.join(__dirname, "docs", "play", name))).digest("hex");
+    ok(name + " matches the pinned hash", notice.indexOf(digest) >= 0, digest);
+  });
+
+  section("one version, in every place it is written");
+  var appSrc = fs.readFileSync(path.join(__dirname, "docs", "play", "app.js"), "utf8");
+  var playHtml = fs.readFileSync(path.join(__dirname, "docs", "play", "index.html"), "utf8");
+  var version = fs.readFileSync(path.join(__dirname, "VERSION"), "utf8").trim();
+  var versionJs = fs.readFileSync(path.join(__dirname, "docs", "play", "version.js"), "utf8");
+  ok("version.js carries VERSION", versionJs.indexOf('"' + version + '"') >= 0, version);
+  var worker = fs.readFileSync(path.join(__dirname, "docs", "play", "sw.js"), "utf8");
+  ok("the cache name carries it too, so a release is visible",
+    worker.indexOf("image-toolkit-v" + version) >= 0);
+  ok("the app prints it in the footer", appSrc.indexOf('$("build")') >= 0);
+  ok("and the page asks for the version before the app", playHtml.indexOf('src="version.js"') >= 0 &&
+    playHtml.indexOf('src="version.js"') < playHtml.indexOf('src="app.js"'));
+
+  section("it can be installed, and it stays installed");
+  var manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "docs", "play", "manifest.webmanifest"), "utf8"));
+  eq("the manifest starts at the app itself", manifest.start_url, "./");
+  eq("and its scope is the app's own folder", manifest.scope, "./");
+  manifest.icons.forEach(function (icon) {
+    ok("the icon it names exists: " + icon.src, fs.existsSync(path.join(__dirname, "docs", "play", icon.src)));
+  });
+  ok("one icon is maskable", manifest.icons.some(function (i) { return /maskable/.test(i.purpose || ""); }));
+  ok("the page registers the worker", appSrc.indexOf("serviceWorker.register") >= 0);
+  ok("the worker serves the page network-first", /request\.mode === "navigate"[\s\S]{0,200}fetch\(request\)/.test(worker));
+  ok("and bumps nothing but its own cache", worker.indexOf("caches.delete") >= 0);
+
+  section("three languages, the same words");
+  var tables = require(path.join(__dirname, "docs", "play", "i18n.js")).I18N.tables;
+  var enKeys = Object.keys(tables.en).sort();
+  ["hi", "gu"].forEach(function (lang) {
+    var keys = Object.keys(tables[lang]).sort();
+    eq(lang + " has every key the English table has", enKeys.filter(function (k) { return keys.indexOf(k) < 0; }), []);
+    eq(lang + " invents no key English does not have", keys.filter(function (k) { return enKeys.indexOf(k) < 0; }), []);
+  });
+  var asked = (playHtml.match(/data-i18n="([^"]+)"/g) || []).map(function (m) { return m.slice(11, -1); });
+  eq("the markup asks only for strings that exist", asked.filter(function (k) { return !(k in tables.en); }), []);
+
+  section("the icon set is complete");
+  ["icon-16.png", "icon-32.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "app.ico"].forEach(function (name) {
+    var iconPath = path.join(__dirname, "docs", "play", "icons", name);
+    ok(name + " exists", fs.existsSync(iconPath) && fs.statSync(iconPath).size > 0);
+  });
 }).then(function () {
   /* ---------------------------------------------------------------- */
   section("the numbers the user reads");

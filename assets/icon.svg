@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Image Toolkit">
+  <!-- The mark: a photo on a darkroom board. No text, no font, no gradient —
+       it has to survive being 16 pixels wide. -->
+  <rect width="512" height="512" rx="112" fill="#17262b"/>
+  <rect x="92" y="116" width="328" height="280" rx="20" fill="#f6f1e6"/>
+  <circle cx="350" cy="192" r="30" fill="#b5432c"/>
+  <path d="M92 396 V330 L172 264 L250 328 L318 282 L420 356 V396 Z" fill="#2f6b45"/>
+  <path d="M92 396 V372 L200 300 L320 372 L420 316 V396 Z" fill="#1f4b57"/>
+</svg>

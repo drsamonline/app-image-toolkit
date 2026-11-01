@@ -169,7 +169,7 @@
     for (var i = 0; i < count; i++) {
       var e = at + 2 + i * 12;
       if (e + 12 > b.length) break;
-      tags.push({ tag: u16(b, e), type: u16(b, e + 2), value: u32(b, e + 8) });
+      tags.push({ tag: u16(b, e), type: u16(b, e + 2), value: u32(b, e + 8), at: e });
     }
     return { tags: tags, u16: u16, u32: u32, base: base, le: le };
   }
@@ -218,6 +218,54 @@
     return ifd.tags.map(function (t) { return t.tag; });
   }
 
+  // The tag a camera uses to say which way up the photo was taken: 1 is
+  // upright, 2 is mirrored, 6 means "rotate 90° clockwise to see it". It has to
+  // be read BEFORE the strip, because the strip is what removes it — and a
+  // browser handed a file without it will draw a portrait photo on its side.
+  function orientation(input) {
+    var b = toBytes(input);
+    var f = sniff(b);
+    if (!f) return 1;
+    var base = exifBlock(b, f);
+    if (base < 0) return 1;
+    var ifd = tiffIfd(b, base);
+    if (!ifd) return 1;
+    for (var i = 0; i < ifd.tags.length; i++) {
+      if (ifd.tags[i].tag === 0x0112) {
+        // A SHORT sits in the first two bytes of the value field, either byte order.
+        var v = ifd.tags[i].type === 3 ? ifd.u16(b, ifd.tags[i].at + 8) : ifd.tags[i].value;
+        return v >= 1 && v <= 8 ? v : 1;
+      }
+    }
+    return 1;
+  }
+
+  // What identifying blocks are still in this file — asked of the OUTPUT, so
+  // "the GPS is gone" is a check rather than a claim.
+  function remaining(input) {
+    var b = toBytes(input);
+    var f = sniff(b);
+    var out = [];
+    if (!f) return out;
+    if (f.format === "jpeg") {
+      var segs = jpegSegments(b);
+      for (var i = 0; i < segs.length; i++) {
+        var kind = segmentKind(b, segs[i]);
+        if (kind) out.push(segs[i].name === "APP1" ? kind : segs[i].name);
+      }
+    } else if (f.format === "png") {
+      var chunks = pngChunks(b);
+      for (var j = 0; j < chunks.length; j++) {
+        if (PRIVACY_CHUNKS[chunks[j].type]) out.push(chunks[j].type);
+      }
+    }
+    return out;
+  }
+
+  function isClean(input) {
+    return remaining(input).length === 0 && !hasGps(input);
+  }
+
   /* ------------------------------------------------------------ png chunks */
 
   function pngChunks(input) {
@@ -241,9 +289,10 @@
 
   // Removes what identifies a person or a place, and nothing else: the pixels,
   // the colour profile and the frame data are kept byte for byte.
-  function stripMetadata(input) {
+  function stripMetadata(input, opts) {
     var b = toBytes(input);
     var f = sniff(b);
+    var keepColour = !opts || opts.keepColour !== false;
     if (!f) return { bytes: b, removed: [], format: null, changed: false };
 
     if (f.format === "jpeg") {
@@ -258,6 +307,8 @@
         var kind = segmentKind(b, s);
         if (kind === "exif" || kind === "xmp" || kind === "iptc" || kind === "comment") {
           removed.push(s.name === "APP1" ? kind : s.name);
+        } else if (!keepColour && s.marker === 0xE2) {
+          removed.push("icc");            // the colour profile, only if asked
         } else {
           parts.push(b.subarray(s.start, s.start + 2 + s.length));
         }
@@ -278,6 +329,7 @@
         var c = chunks[j];
         var whole = b.subarray(c.start, c.start + 12 + c.length);
         if (PRIVACY_CHUNKS[c.type]) { gone.push(c.type); continue; }
+        if (!keepColour && c.type === "iCCP") { gone.push("iCCP"); continue; }
         kept.push(whole);
       }
       var png = concat(kept);
@@ -292,6 +344,66 @@
     for (i = 0; i < parts.length; i++) total += parts[i].length;
     var out = new Uint8Array(total), at = 0;
     for (i = 0; i < parts.length; i++) { out.set(parts[i], at); at += parts[i].length; }
+    return out;
+  }
+
+  /* ---------------------------------------------------- the demo exif block */
+
+  function writeAscii(b, at, s) {
+    for (var i = 0; i < s.length; i++) b[at + i] = s.charCodeAt(i) & 0x7F;
+    b[at + s.length] = 0;
+  }
+
+  // A real TIFF/EXIF block carrying a real GPS IFD — 19°04'N 72°52'E, the same
+  // coordinates the test fixture uses. The built-in sample photo is assembled
+  // from this, so the demo shows a genuine strip: what is removed here is a
+  // block laid out the way a camera lays one out, only shorter.
+  function exifWithGps() {
+    var tiff = new Uint8Array(175);
+    var dv = new DataView(tiff.buffer);
+    tiff[0] = 0x49; tiff[1] = 0x49;                       // "II", little endian
+    dv.setUint16(2, 42, true);
+    dv.setUint32(4, 8, true);                             // IFD0 at 8
+    dv.setUint16(8, 3, true);                             // three entries
+    dv.setUint16(10, 0x010F, true); dv.setUint16(12, 2, true); dv.setUint32(14, 13, true); dv.setUint32(18, 50, true);  // Make
+    dv.setUint16(22, 0x0110, true); dv.setUint16(24, 2, true); dv.setUint32(26, 10, true); dv.setUint32(30, 63, true);  // Model
+    dv.setUint16(34, 0x8825, true); dv.setUint16(36, 4, true); dv.setUint32(38, 1, true); dv.setUint32(42, 73, true);   // GPS IFD
+    dv.setUint32(46, 0, true);                            // no next IFD
+    writeAscii(tiff, 50, "ImageToolkit");                 // 12 chars + NUL = 13
+    writeAscii(tiff, 63, "PocketCam");                    // 9 chars + NUL = 10
+    dv.setUint16(73, 4, true);                            // GPS IFD, four entries
+    dv.setUint16(75, 0x0001, true); dv.setUint16(77, 2, true); dv.setUint32(79, 2, true);
+    tiff[83] = 0x4E;                                      // GPSLatitudeRef "N", inline
+    dv.setUint16(87, 0x0002, true); dv.setUint16(89, 5, true); dv.setUint32(91, 3, true); dv.setUint32(95, 127, true);
+    dv.setUint16(99, 0x0003, true); dv.setUint16(101, 2, true); dv.setUint32(103, 2, true);
+    tiff[107] = 0x45;                                     // GPSLongitudeRef "E", inline
+    dv.setUint16(111, 0x0004, true); dv.setUint16(113, 5, true); dv.setUint32(115, 3, true); dv.setUint32(119, 151, true);
+    dv.setUint32(123, 0, true);                           // no next IFD
+    var rats = [[127, 19], [135, 4], [143, 0], [151, 72], [159, 52], [167, 0]];
+    for (var i = 0; i < rats.length; i++) {
+      dv.setUint32(rats[i][0], rats[i][1], true);
+      dv.setUint32(rats[i][0] + 4, 1, true);
+    }
+    var out = new Uint8Array(181);
+    out[0] = 0x45; out[1] = 0x78; out[2] = 0x69; out[3] = 0x66;  // "Exif\0\0"
+    out.set(tiff, 6);
+    return out;
+  }
+
+  // Put an EXIF block into a JPEG that has none: one APP1 segment, right after
+  // the start-of-image marker. The scan data is untouched, byte for byte.
+  function attachExif(jpegInput, exifInput) {
+    var jpeg = toBytes(jpegInput);
+    var exif = toBytes(exifInput);
+    if (!(jpeg[0] === 0xFF && jpeg[1] === 0xD8)) throw new TypeError("expected a JPEG");
+    var len = exif.length + 2;
+    if (len > 0xFFFF) throw new RangeError("the EXIF block is too large for one APP1 segment");
+    var out = new Uint8Array(jpeg.length + 4 + exif.length);
+    out[0] = 0xFF; out[1] = 0xD8;
+    out[2] = 0xFF; out[3] = 0xE1;
+    out[4] = (len >> 8) & 0xFF; out[5] = len & 0xFF;
+    out.set(exif, 6);
+    out.set(jpeg.subarray(2), 6 + exif.length);
     return out;
   }
 
@@ -324,6 +436,7 @@
     var steps = opts.steps || 6;
     var best = null;
     var tries = 0;
+    var history = [];
 
     function sizeOf(out) { return out && typeof out.size === "number" ? out.size : out.length; }
 
@@ -333,6 +446,7 @@
       tries++;
       return Promise.resolve(encode(q)).then(function (out) {
         var size = sizeOf(out);
+        history.push({ quality: q, size: size });
         if (size <= targetBytes) {
           if (!best || size > best.size) best = { quality: q, size: size, out: out };
           lo = q;
@@ -344,12 +458,116 @@
     }
 
     return step().then(function () {
-      if (best) return { fits: true, quality: best.quality, size: best.size, out: best.out, tries: tries };
+      if (best) return { fits: true, quality: best.quality, size: best.size, out: best.out, tries: tries, history: history };
       return Promise.resolve(encode(lo)).then(function (out) {
         var size = sizeOf(out);
-        return { fits: size <= targetBytes, quality: lo, size: size, out: out, tries: tries + 1 };
+        history.push({ quality: lo, size: size });
+        return { fits: size <= targetBytes, quality: lo, size: size, out: out, tries: tries + 1, history: history };
       });
     });
+  }
+
+  /* ------------------------------------------------------------------- zip */
+
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  }());
+
+  function crc32(bytes) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function utf8(s) {
+    var str = String(s);
+    if (typeof TextEncoder === "function") return new TextEncoder().encode(str);
+    var out = [];
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xC0 | (c >> 6), 0x80 | (c & 63));
+      else out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    }
+    return new Uint8Array(out);
+  }
+
+  function dosStamp(d) {
+    return {
+      time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+      date: (((d.getFullYear() - 1980) & 0x7F) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()
+    };
+  }
+
+  // A store-only ZIP. The files going in are already compressed, so deflating
+  // them again would cost time and save nothing — and a dependency for this
+  // would be absurd. Written by hand: local headers, the central directory, the
+  // end record.
+  function zip(entries, when) {
+    var stamp = dosStamp(when || new Date(1980, 0, 1));
+    var locals = [], central = [], offset = 0, total = 0, i;
+
+    for (i = 0; i < entries.length; i++) {
+      var name = utf8(entries[i].name);
+      var data = toBytes(entries[i].bytes);
+      var crc = crc32(data);
+
+      var lh = new Uint8Array(30 + name.length);
+      var dv = new DataView(lh.buffer);
+      dv.setUint32(0, 0x04034b50, true);
+      dv.setUint16(4, 20, true);            // version needed to extract
+      dv.setUint16(6, 0x0800, true);        // names are UTF-8
+      dv.setUint16(8, 0, true);             // stored, not deflated
+      dv.setUint16(10, stamp.time, true);
+      dv.setUint16(12, stamp.date, true);
+      dv.setUint32(14, crc, true);
+      dv.setUint32(18, data.length, true);
+      dv.setUint32(22, data.length, true);
+      dv.setUint16(26, name.length, true);
+      lh.set(name, 30);
+      locals.push(lh, data);
+      total += lh.length + data.length;
+
+      var ch = new Uint8Array(46 + name.length);
+      var cdv = new DataView(ch.buffer);
+      cdv.setUint32(0, 0x02014b50, true);
+      cdv.setUint16(4, 20, true);           // version made by
+      cdv.setUint16(6, 20, true);           // version needed
+      cdv.setUint16(8, 0x0800, true);
+      cdv.setUint16(10, 0, true);
+      cdv.setUint16(12, stamp.time, true);
+      cdv.setUint16(14, stamp.date, true);
+      cdv.setUint32(16, crc, true);
+      cdv.setUint32(20, data.length, true);
+      cdv.setUint32(24, data.length, true);
+      cdv.setUint16(28, name.length, true);
+      cdv.setUint32(42, offset, true);      // where this file's local header is
+      ch.set(name, 46);
+      central.push(ch);
+      offset += lh.length + data.length;
+    }
+
+    var cdSize = 0;
+    for (i = 0; i < central.length; i++) cdSize += central[i].length;
+
+    var end = new Uint8Array(22);
+    var edv = new DataView(end.buffer);
+    edv.setUint32(0, 0x06054b50, true);
+    edv.setUint16(8, entries.length, true);
+    edv.setUint16(10, entries.length, true);
+    edv.setUint32(12, cdSize, true);
+    edv.setUint32(16, offset, true);
+
+    var all = locals.concat(central, [end]);
+    var out = new Uint8Array(total + cdSize + 22), at = 0;
+    for (i = 0; i < all.length; i++) { out.set(all[i], at); at += all[i].length; }
+    return out;
   }
 
   /* -------------------------------------------------------------- helpers */
@@ -372,6 +590,7 @@
     var steps = [];
     if (!info) return ["this file is not an image"];
     if (info.format === "heic") return ["HEIC cannot be drawn by a browser, so it cannot be converted here"];
+    if (info.orientation && info.orientation !== 1) steps.push("turn the photo upright");
     if (info.width && opts.maxW && info.width > opts.maxW) steps.push("resize to " + opts.maxW + " px wide");
     if (info.hasGps) steps.push("remove the GPS location");
     else if (info.hasExif) steps.push("remove the metadata");
@@ -388,9 +607,16 @@
     pngChunks: pngChunks,
     hasGps: hasGps,
     exifTags: exifTags,
+    orientation: orientation,
+    remaining: remaining,
+    isClean: isClean,
     stripMetadata: stripMetadata,
+    exifWithGps: exifWithGps,
+    attachExif: attachExif,
     fit: fit,
     budget: budget,
+    crc32: crc32,
+    zip: zip,
     formatBytes: formatBytes,
     outName: outName,
     plan: plan
