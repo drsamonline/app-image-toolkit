@@ -3,6 +3,20 @@
 Every entry names what changed and the assertion count at that tag. The count is
 the number `node test-node.js` printed, not an estimate.
 
+## 1.1.0 — 2026-11-01
+
+**The queue**
+- Every photo in the queue can carry its own settings — longest side, target
+  size, format, crop, turn, strip and the colour profile — while the panel above
+  stays the default for everything that follows it. A queue where every file had
+  to share one setting was a queue that made you run the app twice.
+- "Copy to the panel" lifts one photo's settings up to the rest.
+- Changing a setting no longer replaces the results on screen with the queue
+  again; the queue is still there, one run away.
+- The budget chart's axis label is no longer clipped at the edge of its canvas.
+
+165 assertions.
+
 ## 1.0.0 — 2026-11-01
 
 The first release: the app, the landing page, and the proof.

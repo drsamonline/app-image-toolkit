@@ -159,9 +159,14 @@
   }
 
   function refreshPlans() {
-    var opts = readOpts();
-    state.queue.forEach(function (item) { item.plan = planSteps(item.info, opts); });
-    renderQueue();
+    var panel = readOpts();
+    state.queue.forEach(function (item) {
+      item.plan = planSteps(item.info, item.opts || panel);
+    });
+    // Once there are results on screen, changing a setting must not replace them
+    // with the queue again — the queue is still there, one run away.
+    if (state.results.length && !state.busy) renderResults();
+    else renderQueue();
   }
 
   /* ---------------------------------------------------------------- queue */
@@ -194,13 +199,130 @@
       $("results").setAttribute("aria-busy", "false");
       return;
     }
+    var panel = readOpts();
     $("results").innerHTML = state.queue.map(function (item, i) {
-      return '<div class="item"><div class="name">' + esc(item.file.name) + "</div>" +
+      return '<div class="item" data-queue="' + i + '">' +
+        '<div class="name">' + esc(item.file.name) + "</div>" +
         '<div class="meta num">' + ImgTool.formatBytes(item.file.size) + "</div>" +
-        planList(item.plan) + "</div>";
+        planList(item.plan) +
+        '<div class="qrow">' +
+          '<button class="ghost tiny" type="button" data-own="' + i + '">' +
+            esc(item.opts ? t("q.back") : t("q.own")) + "</button>" +
+          '<span class="mut tiny" data-follows="' + i + '">' +
+            esc(item.opts ? t("q.ownNote") : t("q.panel")) + "</span>" +
+        "</div>" +
+        rowOpts(item, i, item.opts || panel) +
+        "</div>";
     }).join("");
     $("zipBtn").hidden = state.results.length === 0;
   }
+
+  // The same controls as the panel, for one photo. A queue where every file
+  // must share one setting is a queue that makes you run the app twice.
+  function rowOpts(item, i, opts) {
+    var open = item.open ? "" : " hidden";
+    function field(name, label, control) {
+      return "<div><label>" + esc(label) + "</label>" + control + "</div>";
+    }
+    function formatOptions() {
+      return [["keep", t("fmt.keep")], ["jpeg", "JPEG"], ["webp", "WebP"], ["png", "PNG"]]
+        .map(function (pair) {
+          return '<option value="' + pair[0] + '"' + (opts.format === pair[0] ? " selected" : "") + ">" +
+            esc(pair[1]) + "</option>";
+        }).join("");
+    }
+    function cropOptions() {
+      return [["free", t("crop.free")], ["1:1", t("crop.square")], ["4:3", "4:3"], ["3:4", "3:4"], ["16:9", "16:9"], ["9:16", "9:16"]]
+        .map(function (pair) {
+          return '<option value="' + pair[0] + '"' + (opts.crop === pair[0] ? " selected" : "") + ">" +
+            esc(pair[1]) + "</option>";
+        }).join("");
+    }
+    function rotateOptions() {
+      return [["auto", t("rot.auto")], ["0", t("rot.0")], ["90", t("rot.90")], ["180", t("rot.180")], ["270", t("rot.270")], ["flip", t("rot.flip")]]
+        .map(function (pair) {
+          return '<option value="' + pair[0] + '"' + (opts.rotate === pair[0] ? " selected" : "") + ">" +
+            esc(pair[1]) + "</option>";
+        }).join("");
+    }
+    return '<div class="rowopts"' + open + ' data-opts="' + i + '">' +
+      '<div class="grid">' +
+        field("maxw", t("q.maxw"), '<input data-opt="maxw" type="number" min="0" step="50" inputmode="numeric" value="' + opts.maxW + '">') +
+        field("target", t("q.target"), '<input data-opt="target" type="number" min="0" step="50" inputmode="numeric" value="' + Math.round(opts.targetBytes / 1024) + '">') +
+        field("format", t("q.format"), '<select data-opt="format">' + formatOptions() + "</select>") +
+        field("crop", t("q.crop"), '<select data-opt="crop">' + cropOptions() + "</select>") +
+        field("rotate", t("q.rotate"), '<select data-opt="rotate">' + rotateOptions() + "</select>") +
+        "<div>" +
+          '<label style="font-size:12px">' + esc(t("q.strip")) + "</label>" +
+          '<label style="font-size:14px;color:var(--ink)"><input data-opt="strip" type="checkbox"' + (opts.strip ? " checked" : "") + "> " + esc(t("opt.strip")) + "</label>" +
+          '<label style="font-size:14px;color:var(--ink);margin-top:4px"><input data-opt="keepColour" type="checkbox"' + (opts.keepColour ? " checked" : "") + "> " + esc(t("opt.colour")) + "</label>" +
+        "</div>" +
+      "</div>" +
+      '<div class="actions"><button class="ghost tiny" type="button" data-copy="' + i + '">' + esc(t("q.copy")) + "</button></div>" +
+      "</div>";
+  }
+
+  function optsFromRow(row) {
+    var q = function (name) { return row.querySelector('[data-opt="' + name + '"]'); };
+    return {
+      maxW: Math.max(0, parseInt(q("maxw").value, 10) || 0),
+      targetBytes: Math.max(0, parseInt(q("target").value, 10) || 0) * 1024,
+      format: q("format").value,
+      strip: q("strip").checked,
+      keepColour: q("keepColour").checked,
+      rotate: q("rotate").value,
+      crop: q("crop").value
+    };
+  }
+
+  // One delegated listener for the queue: the rows are rebuilt often, and a
+  // listener per row would have to be rebuilt with them.
+  $("results").addEventListener("click", function (e) {
+    var button = e.target.closest ? e.target.closest("[data-own],[data-copy]") : null;
+    if (!button) return;
+    var ownIndex = button.getAttribute("data-own");
+    if (ownIndex !== null) {
+      var item = state.queue[parseInt(ownIndex, 10)];
+      if (!item) return;
+      if (item.opts) { item.opts = null; item.open = false; }
+      else { item.opts = readOpts(); item.open = true; }
+      item.plan = planSteps(item.info, item.opts || readOpts());
+      renderQueue();
+      return;
+    }
+    var copyIndex = button.getAttribute("data-copy");
+    if (copyIndex !== null) {
+      var source = state.queue[parseInt(copyIndex, 10)];
+      if (!source || !source.opts) return;
+      $("maxw").value = source.opts.maxW;
+      $("target").value = Math.round(source.opts.targetBytes / 1024);
+      $("format").value = source.opts.format;
+      $("strip").checked = source.opts.strip;
+      $("keepColour").checked = source.opts.keepColour;
+      $("rotate").value = source.opts.rotate;
+      $("crop").value = source.opts.crop;
+      $("preset").value = "custom";
+      refreshPlans();
+    }
+  });
+
+  $("results").addEventListener("change", function (e) {
+    var row = e.target.closest ? e.target.closest("[data-opts]") : null;
+    if (!row) return;
+    var index = parseInt(row.getAttribute("data-opts"), 10);
+    var item = state.queue[index];
+    if (!item) return;
+    item.opts = optsFromRow(row);
+    item.plan = planSteps(item.info, item.opts);
+    var host = $("results").querySelector('[data-queue="' + index + '"]');
+    if (host) {
+      var plan = host.querySelector(".plan");
+      if (plan) plan.outerHTML = planList(item.plan);
+      else host.insertAdjacentHTML("beforeend", planList(item.plan));
+      var follows = host.querySelector('[data-follows="' + index + '"]');
+      if (follows) follows.textContent = t("q.ownNote");
+    }
+  });
 
   function planList(steps) {
     if (!steps || !steps.length) return "";
@@ -429,14 +551,16 @@
     $("results").innerHTML = '<p class="mut">' + esc(t("results.working")) + "</p>";
     $("zipBtn").hidden = true;
 
-    var rows = items.map(function (item) { return { file: item.file, status: "waiting" }; });
+    var rows = items.map(function (item) {
+      return { file: item.file, opts: item.opts || opts, status: "waiting" };
+    });
     var chain = Promise.resolve();
 
     rows.forEach(function (row, i) {
       chain = chain.then(function () {
         row.status = "working";
         renderRows(rows);
-        return processOne(row.file, opts).then(function (r) {
+        return processOne(row.file, row.opts).then(function (r) {
           row.status = "done";
           row.result = r;
           state.results.push(r);
@@ -579,7 +703,7 @@
     var acc = css.getPropertyValue("--acc").trim() || "#14724a";
     var warn = css.getPropertyValue("--warn").trim() || "#9a5b06";
 
-    var w = 340, h = 110, padL = 30, padR = 8, padT = 10, padB = 20;
+    var w = 340, h = 110, padL = 38, padR = 8, padT = 12, padB = 20;
     var dpr = Math.min(3, window.devicePixelRatio || 1);
     canvas.width = w * dpr;
     canvas.height = h * dpr;
@@ -641,9 +765,9 @@
     g.fillText(Math.round(minQ * 100) + "%", padL, h - 6);
     g.textAlign = "right";
     g.fillText(Math.round(maxQ * 100) + "%", w - padR, h - 6);
-    g.textAlign = "left";
+    g.textAlign = "right";
     g.fillStyle = ink;
-    g.fillText(ImgTool.formatBytes(Math.round(maxSize / 1.1)), 2, padT + 6);
+    g.fillText(ImgTool.formatBytes(Math.round(maxSize / 1.1)), padL - 5, padT + 4);
   }
 
   /* -------------------------------------------------------------- report */

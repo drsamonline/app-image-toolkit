@@ -22,13 +22,18 @@ python3 scripts/shot.py "index.html" docs/assets/landing-desktop.png --serve doc
   --wait "document.getElementById('stage').classList.contains('live')" --settle 2.5 \
   --js "document.querySelector('header.bar').style.position='static'"
 
-# 6. the one file, and the release
+# 6. the one file, then the push that does the rest
 python3 scripts/bundle.py
 git add -A && git commit -m "release: v$(cat VERSION)"
-git tag "v$(cat VERSION)" && git push origin main --tags
-gh release create "v$(cat VERSION)" dist/image-toolkit.html \
-  --title "Image Toolkit $(cat VERSION)" --notes-file CHANGELOG.md
+git push origin main
 ```
+
+The push is the release. `Build + deploy` builds the portable EXE, the APK and
+the Linux binary from that commit, publishes them to the rolling `app-latest`
+release, deploys `docs/` to Pages and re-shoots `docs/shot.png` from the live
+demo — so the release, the demo and the screenshot can never disagree. There is
+no separate tagging step and no hand-made release; the rolling release is the
+estate's convention and the pipeline keeps it honest.
 
 Then, in order:
 
@@ -36,8 +41,7 @@ Then, in order:
   phone**, not just on the desktop. The footer prints the version: if it does not
   say the new one, the service worker is the reason, and the cache name is the
   fix.
-- Attach the EXE and the APK the pipeline built to the release, plus
-  `SHA256SUMS.txt`.
+- Check the `app-latest` release carries the three binaries from that commit.
 - Check the badges against the repo: the test count must be the number the suite
   printed, and `deps` must still read `0 runtime`.
 

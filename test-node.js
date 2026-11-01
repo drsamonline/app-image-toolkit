@@ -306,6 +306,9 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   ok("and it opens on the sample when asked", /sample=1/.test(appSrc));
   ok("the results area is announced, not just drawn", html.indexOf('aria-live="polite"') >= 0);
   ok("the app counts what leaves the page", appSrc.indexOf("externalRequests") >= 0);
+  ok("a queued photo can carry its own settings", appSrc.indexOf("data-own") >= 0 && /item\.opts \|\| opts/.test(appSrc));
+  ok("and the run uses them, not the panel's", /processOne\(row\.file, row\.opts\)/.test(appSrc));
+  ok("the queue is offered the panel's settings back", appSrc.indexOf("data-copy") >= 0);
 }).then(function () {
   /* ---------------------------------------------------------------- */
   section("the landing page is a page, not the app");

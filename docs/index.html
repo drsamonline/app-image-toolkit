@@ -323,7 +323,7 @@
         <div><b>3.29 MB</b><small>the sample photo, before</small></div>
         <div><b>286 KB</b><small>after, with the GPS gone</small></div>
         <div><b>6</b><small>encoder calls, at most</small></div>
-        <div><b>162</b><small>assertions, no dependencies</small></div>
+        <div><b>165</b><small>assertions, no dependencies</small></div>
       </div>
     </div>
   </section>
@@ -332,13 +332,13 @@
     <div class="wrap narrow">
       <p class="eyebrow">Run it</p>
       <h2 class="serif">Two commands, no install</h2>
-      <pre><code>node test-node.js                      # the proof — 162 assertions, no dependencies
+      <pre><code>node test-node.js                      # the proof — 165 assertions, no dependencies
 python3 -m http.server -d docs 8000    # then open http://localhost:8000/play/
 
 python3 scripts/bundle.py              # the whole app as one HTML file
 python3 scripts/icons.py               # every icon, from assets/icon.svg
 python3 scripts/version.py             # one version, in every place it is written</code></pre>
-      <p class="lede" style="margin-top:22px">The engine is <a href="https://github.com/drsamonline/app-image-toolkit/blob/main/docs/play/imgtool.js">docs/play/imgtool.js</a> — sniffing, dimensions, EXIF and GPS, the orientation, the strip, the fit, the budget search, the ZIP writer — 700 lines, no imports. The page is a view over it, which is why the tests test what the app actually does.</p>
+      <p class="lede" style="margin-top:22px">The engine is <a href="https://github.com/drsamonline/app-image-toolkit/blob/main/docs/play/imgtool.js">docs/play/imgtool.js</a> — sniffing, dimensions, EXIF and GPS, the orientation, the strip, the fit, the budget search, the ZIP writer — 624 lines, no imports. The page is a view over it, which is why the tests test what the app actually does.</p>
       <p class="lede">It installs. There is a manifest, an icon set drawn from one SVG, and a service worker that serves the page network-first and bumps its cache on every release — because a cache-first worker that is never updated is a release nobody can see. The footer prints the version, so “am I on the new one?” is answerable from the page itself.</p>
       <p class="lede">English, हिन्दी and ગુજરાતી, from one string table. Light and dark, following the system preference, with a remembered override.</p>
     </div>
@@ -348,7 +348,7 @@ python3 scripts/version.py             # one version, in every place it is writt
 <footer>
   <div class="wrap">
     <span>© 2026 Dr Sohil Momin · PolyForm Noncommercial 1.0.0 · <a href="https://github.com/drsamonline/app-image-toolkit">source</a></span>
-    <span class="stamp">build 1.0.0 · 0 bytes leave this page</span>
+    <span class="stamp">build 1.1.0 · 0 bytes leave this page</span>
   </div>
 </footer>
 

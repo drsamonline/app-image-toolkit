@@ -95,7 +95,18 @@
     "report.dirty": "still present: {what}",
     "report.before": "before",
     "report.after": "after",
-    "report.compare": "Compare before and after"
+    "report.compare": "Compare before and after",
+    "q.own": "Own settings",
+    "q.back": "Use the panel's settings",
+    "q.panel": "following the panel",
+    "q.ownNote": "this photo only",
+    "q.copy": "Copy to the panel",
+    "q.maxw": "Longest side, px",
+    "q.target": "Target, KB",
+    "q.format": "Format",
+    "q.crop": "Crop",
+    "q.rotate": "Turn",
+    "q.strip": "Privacy"
   };
 
   var HI = {
@@ -183,7 +194,18 @@
     "report.dirty": "अभी भी मौजूद: {what}",
     "report.before": "पहले",
     "report.after": "बाद",
-    "report.compare": "पहले और बाद की तुलना"
+    "report.compare": "पहले और बाद की तुलना",
+    "q.own": "अपनी सेटिंग",
+    "q.back": "पैनल की सेटिंग इस्तेमाल करें",
+    "q.panel": "पैनल के हिसाब से",
+    "q.ownNote": "सिर्फ़ यह फ़ोटो",
+    "q.copy": "पैनल में कॉपी करें",
+    "q.maxw": "सबसे लंबी भुजा, px",
+    "q.target": "लक्ष्य, KB",
+    "q.format": "फ़ॉर्मैट",
+    "q.crop": "क्रॉप",
+    "q.rotate": "घुमाएँ",
+    "q.strip": "निजता"
   };
 
   var GU = {
@@ -271,7 +293,18 @@
     "report.dirty": "હજી પણ છે: {what}",
     "report.before": "પહેલાં",
     "report.after": "પછી",
-    "report.compare": "પહેલાં અને પછીની તુલના"
+    "report.compare": "પહેલાં અને પછીની તુલના",
+    "q.own": "પોતાની સેટિંગ",
+    "q.back": "પેનલની સેટિંગ વાપરો",
+    "q.panel": "પેનલ પ્રમાણે",
+    "q.ownNote": "ફક્ત આ ફોટો",
+    "q.copy": "પેનલમાં કોપી કરો",
+    "q.maxw": "સૌથી લાંબી બાજુ, px",
+    "q.target": "લક્ષ્ય, KB",
+    "q.format": "ફોર્મેટ",
+    "q.crop": "ક્રોપ",
+    "q.rotate": "ફેરવો",
+    "q.strip": "ગોપનીયતા"
   };
 
   var TABLES = { en: EN, hi: HI, gu: GU };

@@ -37,7 +37,7 @@ this repository, and written back out. No build step, no runtime dependency — 
 | **Convert** | JPEG, PNG, WebP, GIF and BMP in; JPEG, PNG or WebP out |
 | **Strip** | EXIF, XMP, IPTC, JPEG comments; PNG `eXIf`/`tEXt`/`iTXt`/`zTXt` — the colour profile is kept unless you say otherwise |
 | **Check** | the *output* bytes are read back: "checked: nothing left" means the file that will be written really has nothing identifying in it |
-| **Batch** | paste a screenshot in, queue as many as you like, leave with one ZIP, or a per-file report saying exactly what was done |
+| **Batch** | paste a screenshot in, queue as many as you like, give any one of them its own settings, leave with one ZIP, or a per-file report saying exactly what was done |
 
 The pixels are never touched by the strip: everything from the JPEG scan onwards is kept byte for
 byte, and the PNG colour and image chunks are copied whole.
@@ -91,7 +91,7 @@ There is no build step. `docs/play/` is the app. `RELEASING.md` is the six-step 
 ```
 docs/index.html            the landing page — its own design, not the app's
 docs/play/index.html       the app
-docs/play/app.js           the view: queue, options, results, preview, chart, ZIP, i18n
+docs/play/app.js           the view: queue and per-photo settings, results, preview, chart, ZIP
 docs/play/imgtool.js       the engine — sniff, dimensions, EXIF, orientation, strip, check,
                            fit, budget, ZIP
 docs/play/i18n.js          English, Hindi and Gujarati, one table
