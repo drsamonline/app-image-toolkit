@@ -106,7 +106,10 @@
     "q.format": "Format",
     "q.crop": "Crop",
     "q.rotate": "Turn",
-    "q.strip": "Privacy"
+    "q.strip": "Privacy",
+    "theme.label": "Switch between light and dark",
+    "lang.label": "Language",
+    "status.done": "{n} done, {bad} failed"
   };
 
   var HI = {
@@ -205,7 +208,10 @@
     "q.format": "फ़ॉर्मैट",
     "q.crop": "क्रॉप",
     "q.rotate": "घुमाएँ",
-    "q.strip": "निजता"
+    "q.strip": "निजता",
+    "theme.label": "हल्के और गहरे रंग के बीच बदलें",
+    "lang.label": "भाषा",
+    "status.done": "{n} हो गए, {bad} नहीं हुए"
   };
 
   var GU = {
@@ -304,7 +310,10 @@
     "q.format": "ફોર્મેટ",
     "q.crop": "ક્રોપ",
     "q.rotate": "ફેરવો",
-    "q.strip": "ગોપનીયતા"
+    "q.strip": "ગોપનીયતા",
+    "theme.label": "હળવા અને ઘેરા રંગ વચ્ચે બદલો",
+    "lang.label": "ભાષા",
+    "status.done": "{n} થઈ ગયા, {bad} નહીં થયા"
   };
 
   var TABLES = { en: EN, hi: HI, gu: GU };

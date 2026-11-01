@@ -7,6 +7,7 @@ This writes it into the two files that have to carry it — the app's
 to change or a returning reader keeps the old page — and prints what it did.
 
   python3 scripts/version.py
+PolyForm Noncommercial 1.0.0. (c) 2026 Dr Sohil Momin.
 """
 import os
 import re

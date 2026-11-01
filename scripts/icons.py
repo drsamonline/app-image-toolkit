@@ -14,6 +14,7 @@ No image library, no image service, no dependency: an offline-first project must
 not ask the network to draw its own face.
 
   python3 scripts/icons.py
+PolyForm Noncommercial 1.0.0. (c) 2026 Dr Sohil Momin.
 """
 import os
 import shutil
@@ -67,8 +68,12 @@ def maskable_source(master_svg):
     outside the middle 66 % is not guaranteed to survive. The background is
     painted edge to edge, so there are no transparent corners to fill in.
     """
-    inner = master_svg.split(">", 1)[1].rsplit("</svg>", 1)[0]
-    inner = inner.replace('width="512" height="512"', 'width="512" height="512"')
+    text = master_svg.strip()
+    if not text.startswith("<svg"):
+        raise SystemExit("assets/icon.svg must begin with <svg …> — no XML declaration, no comment above it")
+    if "</svg>" not in text:
+        raise SystemExit("assets/icon.svg has no closing tag")
+    inner = text[text.index(">") + 1:text.rindex("</svg>")]
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
         '<rect width="512" height="512" fill="#17262b"/>'

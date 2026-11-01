@@ -78,7 +78,10 @@
     var b = toBytes(input);
     var f = sniff(b);
     if (!f) return null;
-    if (f.format === "png") return { width: u32be(b, 16), height: u32be(b, 20) };
+    if (f.format === "png") {
+      if (b.length < 24) return null;                  // no room for an IHDR
+      return { width: u32be(b, 16), height: u32be(b, 20) };
+    }
     if (f.format === "gif") return { width: u16le(b, 6), height: u16le(b, 8) };
     if (f.format === "bmp") return { width: Math.abs(i32le(b, 18)), height: Math.abs(i32le(b, 22)) };
     if (f.format === "webp") {
@@ -108,21 +111,42 @@
     0xDB: "DQT", 0xC4: "DHT", 0xDD: "DRI"
   };
 
-  // The structure of a JPEG, up to the scan. Nothing after SOS is parsed: that
-  // is entropy-coded image data and touching it would corrupt the picture.
-  function jpegSegments(input) {
+  // The whole structure of a JPEG, in file order — not just the part before the
+  // first scan.
+  //
+  // This matters for privacy. Metadata is not required to sit before the first
+  // scan: Android and Samsung writers put MPF/SEF blocks after it, and a
+  // multi-scan JPEG can carry an APPn between two scans. A walk that stops at
+  // the first SOS therefore leaves an EXIF block in the file while the strip
+  // reports it gone — a check that fails open, which is the worst kind.
+  //
+  // Returns pieces in file order: segments, and the entropy-coded runs between
+  // them, so a caller can rebuild the file exactly, minus what it removes.
+  // Inside a scan, 0xFF is only ever followed by 0x00 (stuffing), 0xD0–0xD7
+  // (restart) or 0xFF (fill); anything else is a real marker.
+  function jpegPieces(input) {
     var b = toBytes(input);
     var out = [];
     if (!(b[0] === 0xFF && b[1] === 0xD8)) return out;
-    var i = 2;
+    var i = 2, rawFrom = -1;
+
+    function raw() { if (rawFrom < 0) rawFrom = i; }
+    function flush(to) {
+      if (rawFrom >= 0 && to > rawFrom) out.push({ kind: "raw", start: rawFrom, end: to });
+      rawFrom = -1;
+    }
+
     while (i < b.length - 1) {
-      if (b[i] !== 0xFF) break;
+      if (b[i] !== 0xFF) { raw(); i++; continue; }
       var m = b[i + 1];
-      if (m === 0xFF) { i++; continue; }            // fill byte
-      if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+      if (m === 0xFF || m === 0x00 || (m >= 0xD0 && m <= 0xD7) || m === 0xD8 || m === 0x01) {
+        raw(); i += m === 0xFF ? 1 : 2; continue;      // fill, stuffed, restart, SOI, TEM
+      }
       var len = u16be(b, i + 2);
-      if (len < 2) break;
+      if (len < 2 || i + 2 + len > b.length) { raw(); i += 2; continue; }   // not a segment after all
+      flush(i);
       out.push({
+        kind: "segment",
         marker: m,
         name: MARKER_NAMES[m] || ("0x" + m.toString(16).toUpperCase()),
         start: i,
@@ -132,9 +156,15 @@
         payload: ascii(b, i + 4, Math.min(i + 4 + 16, b.length))
       });
       i += 2 + len;
-      if (m === 0xDA) break;                        // scan data follows
+      if (m === 0xD9) break;                          // end of image
     }
+    flush(b.length);
     return out;
+  }
+
+  // The segments alone, for the callers that only want the structure.
+  function jpegSegments(input) {
+    return jpegPieces(input).filter(function (p) { return p.kind === "segment"; });
   }
 
   function segmentKind(b, seg) {
@@ -248,10 +278,11 @@
     var out = [];
     if (!f) return out;
     if (f.format === "jpeg") {
-      var segs = jpegSegments(b);
-      for (var i = 0; i < segs.length; i++) {
-        var kind = segmentKind(b, segs[i]);
-        if (kind) out.push(segs[i].name === "APP1" ? kind : segs[i].name);
+      var pieces = jpegPieces(b);
+      for (var i = 0; i < pieces.length; i++) {
+        if (pieces[i].kind !== "segment") continue;
+        var kind = segmentKind(b, pieces[i]);
+        if (kind) out.push(pieces[i].name === "APP1" ? kind : pieces[i].name);
       }
     } else if (f.format === "png") {
       var chunks = pngChunks(b);
@@ -262,8 +293,36 @@
     return out;
   }
 
+  var SIGNATURES = [
+    [0x45, 0x78, 0x69, 0x66, 0x00, 0x00],                     // "Exif\0\0"
+    [0x68, 0x74, 0x74, 0x70, 0x3A, 0x2F, 0x2F, 0x6E, 0x73],   // the XMP namespace prefix
+    [0x50, 0x68, 0x6F, 0x74, 0x6F, 0x73, 0x68, 0x6F, 0x70]    // "Photoshop"
+  ];
+
+  function contains(b, needle) {
+    outer:
+    for (var i = 0; i + needle.length <= b.length; i++) {
+      for (var j = 0; j < needle.length; j++) {
+        if (b[i + j] !== needle[j]) continue outer;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // The claim, checked twice: once by walking the structure, and once by
+  // searching the bytes themselves for the signatures that structure is made
+  // of. A check that shares the parser's blind spot cannot catch the parser's
+  // mistakes — and this one has to fail closed, because the app puts a badge on
+  // it.
   function isClean(input) {
-    return remaining(input).length === 0 && !hasGps(input);
+    var b = toBytes(input);
+    if (remaining(b).length) return false;
+    if (hasGps(b)) return false;
+    for (var i = 0; i < SIGNATURES.length; i++) {
+      if (contains(b, SIGNATURES[i])) return false;
+    }
+    return true;
   }
 
   /* ------------------------------------------------------------ png chunks */
@@ -271,11 +330,15 @@
   function pngChunks(input) {
     var b = toBytes(input);
     var out = [];
-    if (sniff(b) === null || sniff(b).format !== "png") return out;
+    var f = sniff(b);
+    if (!f || f.format !== "png") return out;
     var i = 8;
     while (i + 8 <= b.length) {
       var len = u32be(b, i);
       var type = ascii(b, i + 4, i + 8);
+      // A chunk that claims more bytes than the file holds is not a chunk; stop
+      // rather than slice past the end and hand back a corrupt file.
+      if (i + 12 + len > b.length) break;
       out.push({ type: type, start: i, length: len, dataStart: i + 8, dataLength: len });
       i += 12 + len;
       if (type === "IEND") break;
@@ -296,27 +359,24 @@
     if (!f) return { bytes: b, removed: [], format: null, changed: false };
 
     if (f.format === "jpeg") {
-      var segs = jpegSegments(b);
+      var pieces = jpegPieces(b);
       var removed = [];
       var parts = [b.subarray(0, 2)];             // SOI
-      var scanFrom = b.length;
-      var cursor = 2;
-      for (var i = 0; i < segs.length; i++) {
-        var s = segs[i];
-        if (s.marker === 0xDA) { scanFrom = s.start; break; }
-        var kind = segmentKind(b, s);
+      for (var i = 0; i < pieces.length; i++) {
+        var piece = pieces[i];
+        if (piece.kind === "raw") {
+          parts.push(b.subarray(piece.start, piece.end));    // entropy data, untouched
+          continue;
+        }
+        var kind = segmentKind(b, piece);
         if (kind === "exif" || kind === "xmp" || kind === "iptc" || kind === "comment") {
-          removed.push(s.name === "APP1" ? kind : s.name);
-        } else if (!keepColour && s.marker === 0xE2) {
+          removed.push(piece.name === "APP1" ? kind : piece.name);
+        } else if (!keepColour && piece.marker === 0xE2) {
           removed.push("icc");            // the colour profile, only if asked
         } else {
-          parts.push(b.subarray(s.start, s.start + 2 + s.length));
+          parts.push(b.subarray(piece.start, piece.start + 2 + piece.length));
         }
-        cursor = s.start + 2 + s.length;
-        scanFrom = cursor;
       }
-      if (scanFrom >= b.length) scanFrom = b.length;
-      parts.push(b.subarray(scanFrom));
       var out = concat(parts);
       return { bytes: out, removed: removed, format: "jpeg", changed: out.length !== b.length };
     }
@@ -509,12 +569,30 @@
   // them again would cost time and save nothing — and a dependency for this
   // would be absurd. Written by hand: local headers, the central directory, the
   // end record.
+  // A name a ZIP can hold twice without losing one of them: "a.jpg", "a (2).jpg".
+  function uniqueName(taken, name) {
+    if (!taken[name]) { taken[name] = 1; return name; }
+    var dot = name.lastIndexOf(".");
+    var stem = (dot > 0 ? name.slice(0, dot) : name).replace(/ \(\d+\)$/, "");
+    var ext = dot > 0 ? name.slice(dot) : "";
+    var n = 2, out;
+    do { out = stem + " (" + n + ")" + ext; n++; } while (taken[out]);
+    taken[out] = 1;
+    return out;
+  }
+
   function zip(entries, when) {
     var stamp = dosStamp(when || new Date(1980, 0, 1));
-    var locals = [], central = [], offset = 0, total = 0, i;
+    var locals = [], central = [], offset = 0, total = 0, i, taken = {};
+
+    // No zip64 here, so say so rather than write an archive that quietly wraps.
+    if (entries.length > 0xFFFF) throw new RangeError("a ZIP cannot hold more than 65535 files without zip64");
+    for (i = 0; i < entries.length; i++) {
+      if (toBytes(entries[i].bytes).length + 46 > 0xFFFFFFFF) throw new RangeError("one file is too large for a ZIP without zip64");
+    }
 
     for (i = 0; i < entries.length; i++) {
-      var name = utf8(entries[i].name);
+      var name = utf8(uniqueName(taken, String(entries[i].name)));
       var data = toBytes(entries[i].bytes);
       var crc = crc32(data);
 
@@ -552,6 +630,8 @@
       central.push(ch);
       offset += lh.length + data.length;
     }
+
+    if (total > 0xFFFFFFFF) throw new RangeError("this batch is over 4 GB, which needs zip64");
 
     var cdSize = 0;
     for (i = 0; i < central.length; i++) cdSize += central[i].length;
@@ -617,6 +697,7 @@
     budget: budget,
     crc32: crc32,
     zip: zip,
+    jpegPieces: jpegPieces,
     formatBytes: formatBytes,
     outName: outName,
     plan: plan

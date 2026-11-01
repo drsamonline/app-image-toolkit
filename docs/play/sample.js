@@ -15,18 +15,41 @@
 
   var W = 3200, H = 2400;
 
+  // Two frames, so the "painting the sample" line is on screen before the work
+  // starts rather than after it.
+  function frame() {
+    return new Promise(function (resolve) {
+      if (typeof requestAnimationFrame !== "function") { setTimeout(resolve, 16); return; }
+      requestAnimationFrame(function () { requestAnimationFrame(function () { resolve(); }); });
+    });
+  }
+
   // Film grain, at the full resolution of the frame. A smooth drawing encodes
   // to a small file and would make the sample a dishonest test of the budget
   // search; a photo has detail in every pixel, so this one gets it too.
+  //
+  // 7.7 million pixels of it, though, is a second and a half of frozen main
+  // thread on a desktop and worse on a phone. So it runs in slices: the page
+  // stays answerable while the grain goes in.
+  var SLICE = 400000 * 4;                 // bytes of ImageData per task
+
   function addGrain(canvas) {
     var g = canvas.getContext("2d");
     var img = g.getImageData(0, 0, canvas.width, canvas.height);
     var d = img.data;
-    for (var i = 0; i < d.length; i += 4) {
-      var n = ((Math.random() * 35) | 0) - 17;
-      d[i] += n; d[i + 1] += n; d[i + 2] += n;
-    }
-    g.putImageData(img, 0, 0);
+    var at = 0;
+    return new Promise(function (resolve) {
+      function slice() {
+        var to = Math.min(d.length, at + SLICE);
+        for (; at < to; at += 4) {
+          var n = ((Math.random() * 35) | 0) - 17;
+          d[at] += n; d[at + 1] += n; d[at + 2] += n;
+        }
+        if (at < d.length) setTimeout(slice, 0);
+        else { g.putImageData(img, 0, 0); resolve(canvas); }
+      }
+      slice();
+    });
   }
 
   function hills(g, baseY, amp, colour, phase) {
@@ -107,9 +130,7 @@
       g.fill();
     }
 
-    addGrain(c);
-
-    return c;
+    return addGrain(c).then(function () { return c; });
   }
 
   function toBlob(canvas) {
@@ -123,8 +144,7 @@
 
   // A File the page can feed through exactly the path a dropped photo takes.
   function photo() {
-    var canvas = paint();
-    return toBlob(canvas).then(function (blob) {
+    return frame().then(paint).then(toBlob).then(function (blob) {
       return blob.arrayBuffer();
     }).then(function (buf) {
       var bytes = root.ImgTool.attachExif(new Uint8Array(buf), root.ImgTool.exifWithGps());

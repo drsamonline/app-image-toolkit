@@ -33,7 +33,7 @@ this repository, and written back out. No build step, no runtime dependency — 
 |---|---|
 | **Resize** | contain inside a box, aspect kept, never upscaled, never rounded to zero |
 | **Crop and turn** | square, 4:3, 3:4, 16:9, 9:16; 90°/180°; mirror — and the EXIF orientation is read before the strip, so a portrait photo is not written out sideways |
-| **Compress** | the highest quality that still fits a byte budget — six encoder calls, drawn as a curve, not a guess |
+| **Compress** | the highest quality that still fits a byte budget — a binary search, seven encoder calls at the very worst, drawn as a curve |
 | **Convert** | JPEG, PNG, WebP, GIF and BMP in; JPEG, PNG or WebP out |
 | **Strip** | EXIF, XMP, IPTC, JPEG comments; PNG `eXIf`/`tEXt`/`iTXt`/`zTXt` — the colour profile is kept unless you say otherwise |
 | **Check** | the *output* bytes are read back: "checked: nothing left" means the file that will be written really has nothing identifying in it |
@@ -74,7 +74,7 @@ it reports **3.29 MB → 286 KB**, 1600 × 1200, GPS gone, checked.
 ## Run it
 
 ```bash
-node test-node.js                      # the proof: 162 assertions, no dependencies
+node test-node.js                      # the proof: 191 assertions, no dependencies
 python3 -m http.server -d docs 8000    # then open http://localhost:8000/play/
 
 python3 scripts/version.py             # one version, in every place it is written
@@ -113,4 +113,6 @@ toggle that is remembered — under separate keys, so setting one never changes 
 ## Licence
 
 PolyForm Noncommercial 1.0.0 — free for personal, hobby and educational use; commercial use
-needs a paid licence. The engine file is MIT, as its header says. © 2026 Dr Sohil Momin.
+needs a paid licence. The engine is under the same licence as everything else, as its header
+says; the two vendored kits in `docs/play/` are MIT, and `NOTICE.md` records which is which.
+© 2026 Dr Sohil Momin.

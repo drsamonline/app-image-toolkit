@@ -50,7 +50,7 @@
   input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc)}
   input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
   button{background:var(--acc);color:#fff;border:0;font-weight:600;cursor:pointer;width:auto;padding:9px 14px}
-  :root[data-theme="dark"] button:not(.ghost){color:#06210f}
+  :root[data-theme="dark"] button:not(.ghost):not(.drop){color:#06210f}
   button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
   button:disabled{opacity:.55;cursor:default}
   .tools{display:flex;gap:8px;align-items:center}
@@ -58,7 +58,10 @@
   #lang{padding:7px 6px}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1 1 140px}
-  .drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--mut);cursor:pointer}
+  .drop{display:block;width:100%;background:transparent;border:1.5px dashed var(--line);border-radius:12px;
+    padding:22px;text-align:center;color:var(--mut);font-weight:500;cursor:pointer}
+  :root[data-theme="dark"] button.drop{color:var(--mut)}
+  .drop:hover{color:var(--ink);border-color:var(--mut)}
   .drop.over{border-color:var(--acc);color:var(--ink)}
   .hint{font-size:12.5px;color:var(--mut);margin:8px 0 0}
   .item{border-top:1px solid var(--line);padding:14px 0}
@@ -108,7 +111,7 @@
         <option value="hi">हिन्दी</option>
         <option value="gu">ગુજરાતી</option>
       </select>
-      <button id="theme" type="button" aria-label="Switch between light and dark">Dark</button>
+      <button id="theme" type="button">Dark</button>
     </div>
   </div>
 </header>
@@ -182,7 +185,7 @@
 
   <section class="card" aria-labelledby="h-drop">
     <h2 id="h-drop" data-i18n="photos.heading">Photos</h2>
-    <label class="drop" id="drop" for="files" data-i18n="photos.drop">Drop photos here, or click to choose them</label>
+    <button class="drop" id="drop" type="button" data-i18n="photos.drop">Drop photos here, or click to choose them</button>
     <input id="files" type="file" accept="image/*" multiple hidden>
     <p class="hint"><span data-i18n="photos.paste">Or paste a screenshot</span> <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>V</kbd></p>
     <div class="row" style="margin-top:12px">
@@ -195,7 +198,8 @@
 
   <section class="card" aria-labelledby="h-out">
     <h2 id="h-out" data-i18n="results.heading">Results</h2>
-    <div id="results" aria-live="polite" aria-busy="false"><p class="mut" data-i18n="results.empty">Nothing processed yet.</p></div>
+    <p class="sr" id="status" role="status" aria-live="polite"></p>
+    <div id="results" aria-busy="false"><p class="mut" data-i18n="results.empty">Nothing processed yet.</p></div>
   </section>
 </main>
 

@@ -286,7 +286,7 @@
         <div class="card">
           <span class="k">02 · COMPRESS</span>
           <h3>Hit a byte budget</h3>
-          <p>The highest quality that still fits — a six-call binary search over the encoder, not a guess at a quality number — and the six calls are drawn as a curve, so the search is visible. If the budget cannot be reached it says so.</p>
+          <p>The highest quality that still fits — a binary search over the encoder, seven calls at the very worst, not a guess at a quality number — and every call is drawn as a curve, so the search is visible. If the budget cannot be reached it says so.</p>
         </div>
         <div class="card">
           <span class="k">03 · STRIP</span>
@@ -322,8 +322,8 @@
       <div class="figures">
         <div><b>3.29 MB</b><small>the sample photo, before</small></div>
         <div><b>286 KB</b><small>after, with the GPS gone</small></div>
-        <div><b>6</b><small>encoder calls, at most</small></div>
-        <div><b>165</b><small>assertions, no dependencies</small></div>
+        <div><b>7</b><small>encoder calls, at most</small></div>
+        <div><b>191</b><small>assertions, no dependencies</small></div>
       </div>
     </div>
   </section>
@@ -332,7 +332,7 @@
     <div class="wrap narrow">
       <p class="eyebrow">Run it</p>
       <h2 class="serif">Two commands, no install</h2>
-      <pre><code>node test-node.js                      # the proof — 165 assertions, no dependencies
+      <pre><code>node test-node.js                      # the proof — 191 assertions, no dependencies
 python3 -m http.server -d docs 8000    # then open http://localhost:8000/play/
 
 python3 scripts/bundle.py              # the whole app as one HTML file
@@ -348,7 +348,7 @@ python3 scripts/version.py             # one version, in every place it is writt
 <footer>
   <div class="wrap">
     <span>© 2026 Dr Sohil Momin · PolyForm Noncommercial 1.0.0 · <a href="https://github.com/drsamonline/app-image-toolkit">source</a></span>
-    <span class="stamp">build 1.1.0 · 0 bytes leave this page</span>
+    <span class="stamp">build 1.2.0 · 0 bytes leave this page</span>
   </div>
 </footer>
 

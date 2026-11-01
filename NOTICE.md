@@ -9,11 +9,14 @@ use requires a paid licence.
 ## The engine
 
 `docs/play/imgtool.js` is the whole app: it sniffs the format from the file's own
-bytes (never its name), reads the dimensions from the header, walks the JPEG
-segments to the scan, reads the EXIF/TIFF directory to find the GPS block, removes
-the identifying segments and chunks, computes the contain-fit and searches for the
-highest quality that still fits a byte budget. It has no dependencies, no network
-call and no build step. It is MIT, as its header says.
+bytes (never its name), reads the dimensions from the header, walks the JPEG from
+the first byte to the last — past every scan, because metadata is not required to
+sit before the first one — reads the EXIF/TIFF directory to find the GPS block,
+removes the identifying segments and chunks, computes the contain-fit and searches
+for the highest quality that still fits a byte budget. It has no dependencies, no
+network call and no build step. It carries the same PolyForm Noncommercial 1.0.0
+licence as the rest of the project, as its header says; the two vendored kits
+below are the MIT parts.
 
 Two honest limits, stated because the app says them too:
 
@@ -27,7 +30,9 @@ Two honest limits, stated because the app says them too:
 `docs/play/web-kit.js` and `docs/play/export-kit.js` are copied in from
 `drsamonline/web-kit` and `drsamonline/export-kit` so the app runs offline as
 plain files. They are MIT; the copies here are unmodified — and "unmodified" is
-checked rather than remembered. `node test-node.js` hashes both files and fails
+checked rather than remembered. `web-kit`'s `html` helper is an `innerHTML` sink
+that this app never calls: everything it renders is escaped by hand in `app.js`.
+It is noted here because a vendored file cannot be edited, only watched. `node test-node.js` hashes both files and fails
 if either stops matching the digests below.
 
 | file | sha256 |

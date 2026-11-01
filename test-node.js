@@ -36,6 +36,61 @@ var FIXTURE = Buffer.from(
   "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",
   "base64");
 
+// A real progressive JPEG from a real encoder: ten scans, restart markers every
+// two blocks, and a COM segment. The walk has to survive all of it.
+var PROGRESSIVE = Buffer.from(
+  [
+    "/9j/4AAQSkZJRgABAQAAAQABAAD//gARc2hvdCBvbiBhIHBob25l/9sAQwAFAwQEBAMFBAQEBQUFBgcMCAcHBwcPCwsJDBEP",
+    "EhIRDxERExYcFxMUGhURERghGBodHR8fHxMXIiQiHiQcHh8e/9sAQwEFBQUHBgcOCAgOHhQRFB4eHh4eHh4eHh4eHh4eHh4e",
+    "Hh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4e/8IAEQgASABgAwEiAAIRAQMRAf/EABsAAQADAQEBAQAAAAAAAAAA",
+    "AAMAAgQGBQcB/8QAGwEBAAMBAQEBAAAAAAAAAAAABAIDBQYBAAf/3QAEAAL/2gAMAwEAAhADEAAAAfkDaNjqsTbf3ST/AP/Q",
+    "+c21Ju6GVdV4t//R4dXXV6rPbXeDP//S+ebLNr42dXSbP//T5BXvq+Z1dK2//9Tn1dGbOdXSDf/V5ZVZnLAmi/rP/9bx0e9+",
+    "eCveDP/XzKyfJC+m8G//0PMdVlwudXSLf//Rqr3r54bvepv/0tyaLjozqy1N/9NFkH+cIknrP//U9VJAcjdZIM//1ejWTGy0",
+    "SSDP/8QAHRAAAwEBAQEBAQEAAAAAAAAAAAECERIDISITI//aAAgBAQABBQJSKD//0F5i8j//0f5I4g//0uIFEn//015nCP/U",
+    "4nFCP//ViSIP/9b5IlTP/9decoSP/9DGJH//0VHzk//Sz4kf/9Pzkf5X/9SPM+s//9VSpMZ//9aZMP/XU4Yf/9BSYf/R8pOd",
+    "v//Sa14f/9NTycn/1MMP/9VThyf/1uTD/9fyXzznJ//QmeZU8n//0VIpP//SUinD/9NSKT//1FJKP//Vhf58n//Wz9JH/9dS",
+    "cn//0ORI/9FScn//0khSf//TlfjP1//UU/MP/9XkS+//1lPzD//XUik//9BSKT//0Yn8cn//0uTD/9NThyf/1OTD/9VScn//",
+    "1uTD/9eJJk//0FOCnD//0VIpP//SUik//9NScn//1FIpP//EABkRAAMBAQEAAAAAAAAAAAAAAAACAwERIf/aAAgBAwEBPwHL",
+    "8J23T//QnbRK6f/RSpOp/9LKd0Sh/9NKCUP/1EoJQ//VWnolT//WSglD/9dKCVP/0FoJQ//RShOh/9JKiUP/00bSbaf/1EbR",
+    "G0//1UbRG0//xAArEQABAwIDBgcBAQAAAAAAAAABAALwAxIRITEEQVFhgcETInGRobHRMtL/2gAIAQIBAT8B2PZfHTtm2Wk6",
+    "zC53Jf/QdTpNyLAD1P0i2mHZtHsP3Ff/0cGgafA7tCqNp3YkAZcPzJf/0tkqOpbKLP6dkrhTFjMgPcngF//TvLPLpN51J5BF",
+    "4bkMvidSTyX/1Ly0YSeoC8S0cJvHdf/Vo1LaTCNQPs4K6w+XdCfUnIL/1r8JOp1JyCL7ZJqScl//17wJO3MIuwzEnD2X/9Ck",
+    "9wptPIfR7ovtGA3doT6kL//RL7ZJidSE+thJOpX/0iSJJ1CNTCSZL//TYcGtM0YU7y6cu/8AkL//1DkJxE6BA4TlIAv/1QBb",
+    "OMmCGi//xAAnEAABAgQGAgIDAAAAAAAAAAAAARARITFBAlFhcZGxEjIigaHR4f/aAAgBAQAGPwJv/9Bv/9GZU//SzPVT/9P0",
+    "PVOT/9SiFuD/1W//1s1b/9eZLCf/0LIVxH//0fVELfSH/9K5/T//0zU//9Q+ND//1dTJD//W+KFeD//XoiF+j//Qs3//0W//",
+    "0vGx44T/04JUnNT/1J8GWx//1cj9n//Wb//XiRP/0NSCVP/R8cJLk//SlJDI/9PLZv/Ub//VURD/1tEI3U//14cnSH//0Nem",
+    "/9Gjf//Sb//TNkP/1EwkeD//1YWQ16P/1tOyJ//Xo3//0G//0U3F3P/SXg/B/9PZv//Ub//Vb//Wb//XwiaH/9BNENj/0dm/",
+    "/9Jv/9Nv/9Rv/8QAJhAAAgIBAwQCAwEBAAAAAAAAAAERITFBUWFxgZGhwdEQsfDx4f/aAAgBAQABPyH8f//Q4zjP/9FKUwXU",
+    "SnadrP/SWgn0I/50/9P+rElw0Mf/1MheWTaeY//V/C//1mmRHAanHQ//18jgVr9z/9CNKX2Rc5p2P//Rg8g2LRkH/9JP/kiB",
+    "ZvqZ/9MUhjLB/9SqWJMim4//1aaJ2Cjlsv/WTu8sXVP/10Q8yxPGWjXA/9BdpLsUidPaOfhH/9E7fFH/0mwMMldzV7H/00wQ",
+    "n+glT8M//9SeLcBRp9mR/9WlS92ZqfNmf//WW7Xf6FHj0f/XjkWFJJxwf//QwGWCIkW9H//Rj3NXsRVFLUf/0lJeRuRMR9s/",
+    "/9OOvDIhUKuF9n//1KqxxXshWI6Uf//VhZGkGPfP/9ZLJsXpdkf/14a4SsKSTaryH//QT6/QauOdX0P/0YFFOF8sWpqvR//S",
+    "la39iM/Pyf/Tx4y4FFm0H//U66titBcD/9VKllqcmd/gf//WXBJcEFV+30f/14YUFxNLqMnn9/R//9BCxjb+yQXB/9EVhSZi",
+    "f//S4M0KutKdT//TTCpXsxZTe/L2P//Uwt9Y/R4xtof/1aVUR6FuXn5P/9buxcij2/ux/9f98UlxNs//0IFNQqVhXU//0Y8L",
+    "YuohRGmPs//SiiEqxwtxVVEej//T7cbacCi0ovFaH//URosY/vkTVadD/9oADAMBAAIAAwAAABDZj//QRg//0aB//9IKz//T",
+    "Xt//1IUP/9W5z//WEv8A/9c1T//Qds//0ZTf/9Iaj//TBB//1APf/9UAP//EACARAAMAAQQCAwAAAAAAAAAAAAABERAhMVHw",
+    "YbFBcZH/2gAIAQMBAT8Q5gmtiP/QY+X6Jtz/0X89/WNm5//SXq7Ie3Wf/9O+tLn/1Lsuf//Vu336Lbn/1vOXP//Xx3//0Ftl",
+    "z//Rvg//0iuf/9Nh98jHe8n/1LMT/9W7E//EACURAQACAQMEAgMBAQAAAAAAAAERITEAQWFRcaGxgZHB0fDh8f/aAAgBAgEB",
+    "PxCpWpAQZBjutHYlNzX/0EODlX5AJxMajwmqg6YFL68a/9GOkjzy0FnfSAEg3Hd4WxfqNf/ScqIB6br8FHRR1PoqhT/EdX0F",
+    "/wD/04CAJSCgcBhZgnoNalaBUYdoEPsPga//1KlWOO0kBzuim9IqofW8eCnSKidf/9V9yM7kH4SY40kBQFBNgYDbKN4Nw1//",
+    "1mmoSqwG4OweAAaVEkRjBGJM1FSCaB//14sVXg32IOoA6JeqSRFfsi45+UiTX//QF2SCuiBjdH/NWRBhHSQR8HJwDX//0VRs",
+    "m3SBwxUWDG2gENgD+7Re9XYif//S40r+wRF7VdBpsuI8ZxnENcIqNf/Ti4tjx7gavjYenp4b1//Uopx6PBEfgtYJ0HwfYdoO",
+    "D//VNKNw+0fj+iCkMGJxyfvwdNf/xAAlEAEAAQMDAwUBAQAAAAAAAAABEQAhMUFRYXGh8IGRscHR4fH/2gAIAQEAAT8Qk0qT",
+    "Sv/QkpJT/9EVAzEqKECJND8K/9IUXL0feKR+D9r/05fH6qOIZEj8V//UiQT5WL0ir//Vki1SRav/1i08Ew06tLXRnFv9r//X",
+    "hYE4Il9ilWRbKiHpX//QGBcLbL3ntUAklLeR7xX/0RmWLBZ/VFEEC9xniWSv/9KXUBa6DncxShDFhC9q/9OaLU8aSxIxu1//",
+    "1DIABdXSkB6Vl38+a//VWktofNKQtos75zPSv//WhgqnDB7f5T2FSZAFvU/a/9c2SolEp6BFADAWouc1/9ABJptfe7alEqgB",
+    "i+tH/9GaLVO2YcZNs95r/9Izplmr/PmjAbR7Dmv/08ALkcDmpnOxlg+ulf/UYi6eM9e2aYESnFwy6dq//9VhBmYCTPbyaAQI",
+    "Ugk9jTXev//WsJOwYca7M0hiW6TsIC6V/9c3QiKOKyQRa2uCv//QgUkkWd/OKvAlIxYb1//RwTaHYc+dCDESFt7P3X//0rDX",
+    "otv0Gnz0qJiZYgn8vL1//9O0h7rRl07UEQRLrc66MV//1DExJRFgvqvqhAAOF8XtN5r/1XADOTlj7q4wMstzQ+Wv/9ZWCIOu",
+    "udZt7VPpd0SH+V//1xDCTC7lEjheRbvlvn//0Ctw53wef3kW1ZSqOGB56V//0cLQJWi0exRWAhCYb+Au6/5X/9JwIowIIxpg",
+    "+6AemUuceI6V/9OI3IujX6oAWCLudfuK/9Q4Az7DTziilMX29/v1r//VtINDeVoPNelQqBMm+PD9r//WChu2FflE3EzCTt45",
+    "5r//18AEEuHItbxbxQIFZZi4xa1lf//QIADoGMlo/wAUkpFC7NwnE6dCv//RktaPhocKleLiGfqv/9LJiZROlofhoKJZ/afN",
+    "q//TgGhwOT8/akAbGUvSs8txX//UAqacP4fPujhofQbvPh//1YSjEMZObu7Hi4RKF2V40lr0/lf/1hQicJvvscH3QpYbp2gd",
+    "vC2r/9ebDxFPqLCg08Gv/9A3RuBbytg9zvQoRmKRlR2x3r//0fgD1ZceRVsQgjQTmW1f/9LAIDOOotb+clsMNpMXV5dvH//T",
+    "4ND6HPPgcgJQLncHO74f/9S+gIYODj28RRMQWCFnScbTnbFf/9k="
+  ].join(""),
+  "base64");
+
 function pngChunk(type, data) {
   var len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0);
   var body = Buffer.concat([Buffer.from(type, "ascii"), data]);
@@ -277,6 +332,85 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
     }));
     ok("the point it chose is in the curve", r.history.some(function (p) { return p.quality === r.quality; }));
   });
+}).then(function () {
+  /* ---------------------------------------------------------------- */
+  section("the strip walks past the first scan");
+
+  // Metadata is not required to sit before the first scan. A walk that stops at
+  // the first SOS leaves the location in the file and reports it gone.
+  function insertAfterScan(jpeg) {
+    var segs = T.jpegSegments(jpeg);
+    var sos = segs[segs.length - 1];
+    var at = sos.start + 2 + sos.length;
+    var body = Buffer.from(T.exifWithGps());
+    var app1 = Buffer.alloc(4 + body.length);
+    app1[0] = 0xFF; app1[1] = 0xE1; app1.writeUInt16BE(body.length + 2, 2); body.copy(app1, 4);
+    return Buffer.concat([jpeg.subarray(0, at), app1, jpeg.subarray(at)]);
+  }
+
+  var clean0 = T.stripMetadata(FIXTURE).bytes;
+  var late = insertAfterScan(FIXTURE);
+  ok("a block after the scan is seen by remaining()", T.remaining(late).length >= 2, JSON.stringify(T.remaining(late)));
+  var lateOut = Buffer.from(T.stripMetadata(late).bytes);
+  ok("and the strip removes it", lateOut.indexOf(Buffer.from("Exif\u0000\u0000", "binary")) < 0);
+  ok("leaving the file it would have been without it", lateOut.length === clean0.length, lateOut.length + " vs " + clean0.length);
+  ok("and the entropy data is untouched", lateOut.subarray(lateOut.length - 200).equals(Buffer.from(clean0).subarray(clean0.length - 200)));
+  ok("so the output is clean by both checks", T.isClean(lateOut));
+
+  // The independent check: the signature, wherever it sits, even where the
+  // structure says there is nothing to see.
+  var sneaky = Buffer.from(clean0);
+  var sos2 = T.jpegSegments(sneaky).pop();
+  var where = sos2.start + 2 + sos2.length;
+  var withSig = Buffer.concat([sneaky.subarray(0, where), Buffer.from("Exif\u0000\u0000", "binary"), sneaky.subarray(where)]);
+  eq("a bare signature in the scan data is not a segment", T.remaining(withSig), []);
+  ok("but isClean() still refuses to call it clean", T.isClean(withSig) === false);
+
+  /* ---------------------------------------------------------------- */
+  section("a real progressive JPEG, ten scans and restart markers");
+
+  eq("it is a jpeg", T.sniff(PROGRESSIVE).format, "jpeg");
+  eq("96 x 72", T.dimensions(PROGRESSIVE), { width: 96, height: 72 });
+  ok("it has more than one scan", T.jpegSegments(PROGRESSIVE).filter(function (s) { return s.marker === 0xDA; }).length > 1);
+  eq("the comment segment is the only thing to remove", T.remaining(PROGRESSIVE), ["COM"]);
+  var progOut = T.stripMetadata(PROGRESSIVE);
+  eq("and the strip removes exactly it", progOut.removed, ["COM"]);
+  ok("the scans are all still there",
+    T.jpegSegments(progOut.bytes).filter(function (s) { return s.marker === 0xDA; }).length ===
+    T.jpegSegments(PROGRESSIVE).filter(function (s) { return s.marker === 0xDA; }).length);
+  ok("the restart interval survives", T.jpegSegments(progOut.bytes).some(function (s) { return s.marker === 0xDD; }));
+  ok("and the result is clean", T.isClean(progOut.bytes));
+  ok("only the segment's own bytes went", PROGRESSIVE.length - progOut.bytes.length === 19, PROGRESSIVE.length - progOut.bytes.length);
+
+  /* ---------------------------------------------------------------- */
+  section("a malformed png is refused, not mangled");
+
+  var truncated = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13]);
+  eq("a 12-byte png has no dimensions", T.dimensions(truncated), null);
+  eq("and no chunks", T.pngChunks(truncated), []);
+  var lying = Buffer.from(buildPng(true).subarray(0, 40));
+  ok("no chunk is reported past the end of the file", T.pngChunks(lying).every(function (c) {
+    return c.start + 12 + c.length <= lying.length;
+  }), JSON.stringify(T.pngChunks(lying).map(function (c) { return c.type + ":" + c.length; })));
+
+  /* ---------------------------------------------------------------- */
+  section("the zip keeps every file, under a name of its own");
+
+  var dupes = Buffer.from(T.zip([
+    { name: "a.jpg", bytes: Buffer.from("one") },
+    { name: "a.jpg", bytes: Buffer.from("two") },
+    { name: "a (2).jpg", bytes: Buffer.from("three") },
+    { name: "noext", bytes: Buffer.from("four") },
+    { name: "noext", bytes: Buffer.from("five") }
+  ]));
+  var text = dupes.toString("binary");
+  ["a.jpg", "a (2).jpg", "a (3).jpg", "noext", "noext (2)"].forEach(function (name) {
+    ok("the zip holds " + name, text.indexOf(name) >= 0);
+  });
+  eq("and five entries", dupes.readUInt16LE(dupes.length - 22 + 10), 5);
+  var refusedMany = false;
+  try { T.zip(new Array(70000).fill({ name: "x", bytes: Buffer.alloc(1) })); } catch (e) { refusedMany = /65535/.test(e.message); }
+  ok("more files than a zip can hold is refused, not wrapped", refusedMany);
 }).then(function () {
   /* ---------------------------------------------------------------- */
   section("what the page promises");

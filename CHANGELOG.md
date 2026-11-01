@@ -3,6 +3,63 @@
 Every entry names what changed and the assertion count at that tag. The count is
 the number `node test-node.js` printed, not an estimate.
 
+## 1.2.0 — 2026-11-01
+
+The audit, answered. Every finding in `AUDIT` terms was either fixed or
+deliberately kept, and the fixes have tests.
+
+**The one that mattered**
+
+- The strip now walks the whole JPEG — past every scan — instead of stopping at
+  the first. Metadata is not required to sit before the first SOS: Android and
+  Samsung writers put MPF/SEF blocks after it, and a walk that stopped early left
+  the location in the file while the strip reported it gone.
+- And the check no longer trusts the walk. `isClean()` searches the bytes for the
+  EXIF, XMP and IPTC signatures themselves, wherever they sit, so a parser blind
+  spot can no longer produce a "checked: nothing left" badge on a file that still
+  carries the coordinates. It fails closed.
+
+**The view — four defects no test could see, because there were no tests for it**
+
+- A second run duplicated the results, so "Download all as ZIP" produced two
+  entries with one name. A run now starts from nothing, and releases the object
+  URLs the last one held.
+- Changing a setting after a run replaced the results with the queue — the
+  opposite of what the comment said, and of what 1.1.0 claimed. The results now
+  stay, through a settings change and a language change.
+- The drop zone was a `<label for>` with a click handler, so it opened the file
+  picker twice. It is a real button now, and one thing opens the picker.
+- That same change puts the file picker in the tab order, where it was not: a
+  keyboard user could not add a photo at all.
+
+**Smaller**
+
+- The service worker no longer caches 404s and 500s, and no longer stores the
+  page under its query string.
+- The sample photo no longer freezes the page: the grain goes in slices, and the
+  "painting" line gets a frame to appear before the work starts (1.7 s of frozen
+  main thread before).
+- ZIP entries are de-duplicated (`a.jpg`, `a (2).jpg`), and a batch too large for
+  a non-zip64 archive is refused instead of silently corrupted.
+- The EXIF-orientation fallback no longer double-rotates on browsers that apply
+  the tag themselves.
+- "Seven encoder calls, at the very worst" — the copy said six, and the code does
+  seven when the budget cannot be reached.
+- `NOTICE.md` and the README said the engine was MIT. It never was: it carries
+  the project's PolyForm Noncommercial licence, and both documents now say so.
+- A malformed PNG is refused rather than mangled; `bundle.py` fails instead of
+  shipping a single file with a dangling reference; `icons.py` validates the
+  master instead of slicing it; the three scripts that had no licence header have
+  one.
+
+**The proof**
+
+- 191 assertions in `test-node.js`, including a real progressive JPEG from a real
+  encoder — ten scans, restart markers — and a file with metadata after the scan.
+- `scripts/uitest.py`: the app in headless Chromium, 17 checks, standard library
+  only — the picker, the run, the ZIP, the language switch. The view has tests
+  now, and they run in CI.
+
 ## 1.1.0 — 2026-11-01
 
 **The queue**

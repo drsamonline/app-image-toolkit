@@ -20,6 +20,7 @@ poll on a JavaScript predicate the caller supplies.
 `--js EXPR` runs one more expression just before the capture, which is how a
  sticky header is pinned down: in a full-page capture it would otherwise be
  drawn at its current viewport offset, floating in the middle of the page.
+PolyForm Noncommercial 1.0.0. (c) 2026 Dr Sohil Momin.
 """
 import base64
 import json

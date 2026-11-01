@@ -29,6 +29,7 @@
   function setTheme(mode) {
     document.documentElement.setAttribute("data-theme", mode);
     $("theme").textContent = mode === "dark" ? t("theme.toLight") : t("theme.toDark");
+    $("theme").setAttribute("aria-label", t("theme.label"));
     var m = document.querySelector('meta[name="theme-color"]');
     if (m) m.setAttribute("content", mode === "dark" ? "#0f1115" : "#f7f5f1");
   }
@@ -45,6 +46,7 @@
     state.lang = I18N.langs.indexOf(lang) >= 0 ? lang : "en";
     document.documentElement.lang = state.lang;
     $("lang").value = state.lang;
+    $("lang").setAttribute("aria-label", t("lang.label"));
     I18N.apply(document, state.lang);
     setTheme(document.documentElement.getAttribute("data-theme") || "light");
     $("build").textContent = t("build", { v: (window.IMAGE_TOOLKIT && window.IMAGE_TOOLKIT.version) || "" });
@@ -330,6 +332,9 @@
   }
 
   $("files").addEventListener("change", function (e) { addFiles(e.target.files); });
+  // The drop zone is a real button, so it is in the tab order — and the click
+  // handler is the only thing that opens the picker. It used to be a <label for>
+  // that also had this handler, which opened the dialog twice.
   $("drop").addEventListener("click", function () { $("files").click(); });
   ["dragenter", "dragover"].forEach(function (ev) {
     $("drop").addEventListener(ev, function (e) { e.preventDefault(); $("drop").classList.add("over"); });
@@ -492,7 +497,14 @@
       return decode(new Blob([cleaned.bytes], { type: info.mime })).then(function (img) {
         var w = img.width || (dim && dim.width) || 0;
         var h = img.height || (dim && dim.height) || 0;
-        var transform = transformFor(orientation, opts.rotate);
+
+        // The <img> fallback lets the browser apply the EXIF orientation itself,
+        // so with the strip off the tag is still there and rotating again would
+        // turn the photo twice. If the decoded dimensions are the header's
+        // swapped, the browser has already done it.
+        var autoOriented = !!(dim && dim.width !== dim.height &&
+          w === dim.height && h === dim.width);
+        var transform = transformFor(autoOriented ? 1 : orientation, opts.rotate);
         var drawn = render(img, w, h, opts, transform);
 
         var outFormat = opts.format === "keep" ? info.format : opts.format;
@@ -525,7 +537,7 @@
             gps: gps,
             tags: tags,
             removed: cleaned.removed,
-            orientation: orientation,
+            orientation: autoOriented ? 1 : orientation,
             left: left,
             clean: clean,
             quality: out.quality,
@@ -544,10 +556,17 @@
     var items = state.queue.slice();
     if (!items.length || state.busy) return;
 
+    // A run starts from nothing: results from the last one are not this one's,
+    // and the object URLs they held are the only thing keeping those blobs
+    // alive. Without this, a second run doubles the ZIP and leaks every photo.
+    revokeUrls();
+    state.results = [];
+
     state.busy = true;
     $("run").disabled = true;
     $("run").textContent = t("btn.working");
     $("results").setAttribute("aria-busy", "true");
+    say(t("results.working"));
     $("results").innerHTML = '<p class="mut">' + esc(t("results.working")) + "</p>";
     $("zipBtn").hidden = true;
 
@@ -571,6 +590,8 @@
       });
     });
 
+    state.lastRows = rows;
+
     return chain.then(function () {
       state.busy = false;
       $("run").disabled = false;
@@ -579,6 +600,9 @@
       $("zipBtn").hidden = state.results.length === 0;
       renderResults(rows);
       refreshCounter();
+      var ok = rows.filter(function (r) { return r.status === "done"; }).length;
+      var bad = rows.length - ok;
+      say(t("status.done", { n: ok, bad: bad }));
     });
   }
 
@@ -605,8 +629,11 @@
     wireRows(rows);
   }
 
+  // Show the last results again — for a language change, or a settings change
+  // that should not throw the output away. With nothing run yet, the queue.
   function renderResults(rows) {
-    if (rows && rows.length) { renderRows(rows); return; }
+    var keep = rows && rows.length ? rows : state.lastRows;
+    if (keep && keep.length) { renderRows(keep); return; }
     renderQueue();
   }
 
@@ -879,6 +906,14 @@
       window.addEventListener("load", function () { demo("sample"); });
     }
   }());
+
+  // One line, announced politely. The list itself is not a live region: it is
+  // replaced on every render, and a screen reader would read all of it again
+  // each time a row finished.
+  function say(message) {
+    var line = $("status");
+    if (line) line.textContent = message;
+  }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {

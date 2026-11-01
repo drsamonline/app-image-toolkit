@@ -24,8 +24,26 @@ jobs:
       - name: The app ships what it says it ships
         run: |
           set -euo pipefail
-          for f in index.html imgtool.js web-kit.js export-kit.js; do
+          for f in index.html app.js imgtool.js i18n.js sample.js version.js \
+                   web-kit.js export-kit.js sw.js manifest.webmanifest; do
             test -s "docs/play/$f" || { echo "::error::docs/play/$f is missing or empty"; exit 1; }
           done
-          node --check docs/play/imgtool.js
+          for f in docs/play/*.js; do node --check "$f"; done
           echo "docs/play is complete" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: The scripts still run, and the version is in sync
+        run: |
+          set -euo pipefail
+          python3 scripts/version.py
+          git diff --exit-code -- docs/play/version.js docs/play/sw.js \
+            || { echo "::error::VERSION and the shipped files disagree — run scripts/version.py and commit"; exit 1; }
+          python3 scripts/bundle.py
+
+      - name: The app in a browser
+        run: |
+          set -euo pipefail
+          if command -v google-chrome >/dev/null 2>&1 || command -v chromium >/dev/null 2>&1; then
+            python3 scripts/uitest.py
+          else
+            echo "no browser on this runner — the browser checks were skipped, not passed" >> "$GITHUB_STEP_SUMMARY"
+          fi

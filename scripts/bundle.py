@@ -54,6 +54,15 @@ def main(argv):
         html = fh.read()
 
     html = inline(html, PLAY)
+
+    # Anything still pointing at a file is a reference the inliner did not
+    # understand — a <script defer src>, say. Shipping it would produce a single
+    # file that is broken in exactly one place, which is worse than not building.
+    dangling = (re.findall(r'<script[^>]*\ssrc="([^"]+)"', html) +
+                re.findall(r'<link[^>]*\shref="([^"]+)"', html))
+    if dangling:
+        raise SystemExit("the bundle would still load: " + ", ".join(sorted(set(dangling))))
+
     html = html.replace("<title>", "<!-- Image Toolkit, one file. Nothing here loads anything. -->\n<title>", 1)
 
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
