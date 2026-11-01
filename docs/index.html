@@ -275,18 +275,18 @@
   <section id="does">
     <div class="wrap">
       <p class="eyebrow">What it does</p>
-      <h2 class="serif">Five things people actually do to a photo before sending it</h2>
+      <h2 class="serif">What people actually do to a photo before sending it</h2>
       <p class="lede">And a sixth, which is to say honestly what happened to it.</p>
       <div class="cards">
         <div class="card">
           <span class="k">01 · RESIZE</span>
           <h3>Contain inside a box</h3>
-          <p>Aspect kept, never upscaled, never rounded to zero pixels. Ask for 1600 and a 4000 px photo becomes 1600; ask for 1600 and a 900 px photo stays 900. Crop to a square or a story, turn it, mirror it.</p>
+          <p>Aspect kept, never upscaled, never rounded to zero pixels. Ask for 1600 and a 4000 px photo becomes 1600; ask for 1600 and a 900 px photo stays 900. Shrinking by more than half is done in halving steps, so the detail survives the trip. Crop to a square or a story, turn it, mirror it.</p>
         </div>
         <div class="card">
           <span class="k">02 · COMPRESS</span>
           <h3>Hit a byte budget</h3>
-          <p>The highest quality that still fits — a binary search over the encoder, seven calls at the very worst, not a guess at a quality number — and every call is drawn as a curve, so the search is visible. If the budget cannot be reached it says so.</p>
+          <p>The highest quality that still fits — a binary search over the encoder, seven calls at the very worst, not a guess at a quality number — and every call is drawn as a curve, so the search is visible. If the budget cannot be reached it says so. Or pick <em>Auto</em> and it encodes JPEG and WebP and keeps the smaller — the trick Squoosh taught everyone, done without a codec library.</p>
         </div>
         <div class="card">
           <span class="k">03 · STRIP</span>
@@ -297,6 +297,16 @@
           <span class="k">04 · CHECK</span>
           <h3>Then read the output back</h3>
           <p>“GPS removed” is what the strip removed from the input. The second badge — <em>checked: nothing left</em> — is the output read back and found clean. A photo you can send is one you have verified, not one you have hoped about.</p>
+        </div>
+        <div class="card">
+          <span class="k">05 · SAY</span>
+          <h3>What was in the file</h3>
+          <p>Before anything is taken out, the queue shows what is in there — camera, model, date, and whether there is a GPS block at all. A strip you can see is a strip you can trust.</p>
+        </div>
+        <div class="card">
+          <span class="k">06 · LEAVE</span>
+          <h3>With a document, not a pile</h3>
+          <p>A batch leaves as one ZIP, or as one A4 PDF — the JPEGs go into the PDF as JPEGs, because PDF has a filter for exactly that, so nothing is encoded twice. Written by hand in the engine, both of them.</p>
         </div>
       </div>
     </div>
@@ -316,13 +326,14 @@
         <div><span class="tick">✓</span><span>Unreadable metadata is reported as unreadable, so nobody assumes the GPS was stripped.</span></div>
         <div><span class="tick">✓</span><span>If the download cannot be written, the button says so and the image stays in memory.</span></div>
         <div><span class="tick">✓</span><span>A counter in the footer watches for requests that leave this origin, and stays at zero.</span></div>
-        <div><span class="tick">✓</span><span>A batch leaves as one ZIP, written by hand in the engine — no library for that either.</span></div>
+        <div><span class="tick">✓</span><span>A batch leaves as one ZIP or one PDF, both written by hand in the engine — no library for either.</span></div>
+        <div><span class="tick">✓</span><span>“Remove every metadata block” is a real switch, not a promise: maker notes, MPF indexes and the colour profile go too, and the file still opens.</span></div>
       </div>
 
       <div class="figures">
         <div><b>3.29 MB</b><small>the sample photo, before</small></div>
         <div><b>286 KB</b><small>after, with the GPS gone</small></div>
-        <div><b>7</b><small>encoder calls, at most</small></div>
+        <div><b>7</b><small>encoder calls at most, per format</small></div>
         <div><b>191</b><small>assertions, no dependencies</small></div>
       </div>
     </div>
@@ -348,7 +359,7 @@ python3 scripts/version.py             # one version, in every place it is writt
 <footer>
   <div class="wrap">
     <span>© 2026 Dr Sohil Momin · PolyForm Noncommercial 1.0.0 · <a href="https://github.com/drsamonline/app-image-toolkit">source</a></span>
-    <span class="stamp">build 1.2.0 · 0 bytes leave this page</span>
+    <span class="stamp">build 1.3.0 · 0 bytes leave this page</span>
   </div>
 </footer>
 

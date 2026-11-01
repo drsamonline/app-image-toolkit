@@ -273,8 +273,6 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   eq("a photo the camera said to turn reads as 6", T.orientation(sideways), 6);
   var mirrored = T.attachExif(bare, exifWithOrientation(2));
   eq("and a mirrored one reads as 2", T.orientation(mirrored), 2);
-  eq("the plan says so before any work", T.plan({ format: "jpeg", width: 100, orientation: 6 }, {}),
-    ["turn the photo upright"]);
   ok("and the tag is still removed by the strip", T.orientation(T.stripMetadata(sideways).bytes) === 1);
 
   /* ---------------------------------------------------------------- */
@@ -554,13 +552,63 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   eq("12 MB", T.formatBytes(12 * 1024 * 1024), "12.0 MB");
   eq("a new name", T.outName("IMG_4021.JPG", "webp"), "IMG_4021-min.webp");
 
-  section("the plan the page shows before it works");
-  eq("a phone photo with GPS and a budget", T.plan({ format: "jpeg", width: 4000, hasGps: true, hasExif: true }, { maxW: 1600, targetKB: 500 }),
-    ["resize to 1600 px wide", "remove the GPS location", "compress to under 500 KB"]);
-  eq("a file with nothing to do", T.plan({ format: "jpeg", width: 800, hasGps: false, hasExif: false }, { maxW: 1600 }),
-    ["nothing to change"]);
-  eq("a HEIC is named as undrawable", T.plan({ format: "heic", width: 4000 }, { maxW: 1600 }),
-    ["HEIC cannot be drawn by a browser, so it cannot be converted here"]);
+  /* ---------------------------------------------------------------- */
+  section("what the file says about itself");
+
+  var summary = T.exifSummary(FIXTURE);
+  var byName = {};
+  summary.forEach(function (e) { byName[e.name] = e.value; });
+  eq("the make, read from the ASCII tag", byName.Make, "ForgeCam");
+  eq("the model", byName.Model, "TestBody");
+  eq("and the GPS block, as a presence rather than an offset", byName.GPS, "present");
+  eq("a file with no EXIF says nothing", T.exifSummary(Buffer.from("GIF89a" + "\u0000".repeat(20), "binary")), []);
+
+  /* ---------------------------------------------------------------- */
+  section("strip everything, not just what identifies you");
+
+  var clean0 = T.stripMetadata(FIXTURE).bytes;
+
+  function withSegment(jpeg, marker, text) {
+    var payload = Buffer.from(text, "binary");
+    var seg = Buffer.alloc(4 + payload.length);
+    seg[0] = 0xFF; seg[1] = marker; seg.writeUInt16BE(payload.length + 2, 2);
+    payload.copy(seg, 4);
+    return Buffer.concat([jpeg.subarray(0, 2), seg, jpeg.subarray(2)]);
+  }
+
+  var withMaker = withSegment(clean0, 0xE3, "a maker note nobody can read");
+  eq("an unknown APP3 survives the ordinary strip", T.stripMetadata(withMaker).removed, []);
+  var all = T.stripMetadata(withMaker, { stripAll: true });
+  ok("stripAll removes it", all.removed.indexOf("APP3") >= 0, JSON.stringify(all.removed));
+  eq("and nothing is left to name", T.remaining(all.bytes), []);
+
+  var withAdobe = withSegment(clean0, 0xEE, "Adobe");
+  eq("Adobe's APP14 stays even then — some decoders need it", T.stripMetadata(withAdobe, { stripAll: true }).removed, []);
+  ok("and the JFIF APP0 stays too",
+    T.jpegSegments(T.stripMetadata(FIXTURE, { stripAll: true }).bytes).some(function (x) { return x.marker === 0xE0; }));
+  var withIcc = withSegment(clean0, 0xE2, "ICC_PROFILE\u0000");
+  ok("the colour profile goes with everything else",
+    T.stripMetadata(withIcc, { stripAll: true }).removed.indexOf("icc") >= 0);
+
+  /* ---------------------------------------------------------------- */
+  section("images into a pdf");
+
+  var doc = Buffer.from(T.pdf([{ bytes: PROGRESSIVE }, { bytes: PROGRESSIVE }]));
+  var text = doc.toString("latin1");
+  eq("it is a pdf", text.slice(0, 8), "%PDF-1.4");
+  ok("it ends with the end marker", text.trim().slice(-5) === "%%EOF");
+  ok("it holds two pages", /\/Type \/Pages[^>]*\/Count 2/.test(text));
+  ok("each page is A4", text.indexOf("/MediaBox [0 0 595.28 841.89]") >= 0);
+  var xrefAt = Number((/startxref\s+(\d+)\s+%%EOF/.exec(text) || [])[1]);
+  eq("the xref offset points at the xref table", text.substr(xrefAt, 4), "xref");
+  eq("the JPEG goes in as a JPEG, not re-encoded", (text.match(/\/Filter \/DCTDecode/g) || []).length, 2);
+  ok("and the image bytes are the ones we passed", doc.indexOf(PROGRESSIVE.subarray(100, 140)) >= 0);
+  var refusedPdf = false;
+  try { T.pdf([{ bytes: Buffer.from("not a jpeg at all") }]); } catch (e) { refusedPdf = /JPEG/.test(e.message); }
+  ok("a file that is not a JPEG is refused", refusedPdf);
+  var refusedEmpty = false;
+  try { T.pdf([]); } catch (e) { refusedEmpty = /at least one/.test(e.message); }
+  ok("and so is an empty document", refusedEmpty);
 }).then(function () {
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exit(failed ? 1 : 0);

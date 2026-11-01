@@ -153,6 +153,60 @@ def main():
             ok("the entry is a readable jpeg", archive.read(names[0])[:2] == b"\xff\xd8")
             ok("every crc checks out", archive.testzip() is None)
 
+        print("\nthe metadata panel")
+        # Queue a photo without running it: the panel is a thing you read before
+        # the work, so the queue is where it has to be.
+        cdp.eval("""(async function () {
+          var f = await Sample.photo();
+          var dt = new DataTransfer(); dt.items.add(f);
+          var input = document.getElementById('files');
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change'));
+        })()""")
+        ok("the photo is queued", wait_for(cdp, "document.querySelectorAll('[data-queue]').length >= 1", timeout=60))
+        ok("and the queue shows what is in it",
+           wait_for(cdp, "!!document.querySelector('.meta-panel summary')", timeout=10))
+        ok("and it names the GPS block",
+           (cdp.eval("(document.querySelector('.meta-panel') || {}).textContent || ''") or "").find("GPS") >= 0)
+
+        print("\nauto picks the smaller format")
+        cdp.eval("""(function () {
+          var f = document.getElementById('format'); f.value = 'auto';
+          f.dispatchEvent(new Event('change', { bubbles: true }));
+          var t = document.getElementById('target'); t.value = '0';
+          t.dispatchEvent(new Event('change', { bubbles: true }));
+          document.getElementById('run').click();
+        })()""")
+        ok("the auto run finishes", wait_for(cdp, "!document.getElementById('run').disabled", timeout=90))
+        time.sleep(0.4)
+        chosen = cdp.eval("""Array.prototype.map.call(document.querySelectorAll('[data-row] .badge'),
+                               function (b) { return b.textContent; }).join('|')""")
+        ok("auto chose WebP, the smaller of the two", "WEBP" in (chosen or ""), chosen or "")
+        ok("and it reports a result",
+           "→" in (cdp.eval("(document.querySelector('[data-row] .meta') || {}).textContent || ''") or ""))
+
+        print("\nimages into a pdf")
+        cdp.eval("window.__pdf = null; window.__origBlob2 = Export.blob;")
+        cdp.eval("""Export.blob = function (name, blob) {
+          if (/\.pdf$/.test(name)) {
+            blob.arrayBuffer().then(function (b) {
+              var d = new Uint8Array(b), s = '';
+              for (var i = 0; i < d.length; i++) s += String.fromCharCode(d[i]);
+              window.__pdf = btoa(s);
+            });
+            return;
+          }
+          return window.__origBlob2.apply(this, arguments);
+        };""")
+        cdp.eval("document.getElementById('pdfBtn').click()")
+        ok("the pdf is produced", wait_for(cdp, "!!window.__pdf", timeout=30))
+        raw_pdf = cdp.eval("window.__pdf")
+        if raw_pdf:
+            doc = base64.b64decode(raw_pdf)
+            check("it is a pdf", doc[:8], b"%PDF-1.4")
+            ok("it ends properly", doc.rstrip().endswith(b"%%EOF"))
+            ok("it embeds the jpeg as a jpeg", b"/DCTDecode" in doc)
+
         print("\n%d passed, %d failed" % (passed, failed))
         return 1 if failed else 0
     finally:

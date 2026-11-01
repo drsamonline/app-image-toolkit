@@ -3,6 +3,45 @@
 Every entry names what changed and the assertion count at that tag. The count is
 the number `node test-node.js` printed, not an estimate.
 
+## 1.3.0 — 2026-11-01
+
+The rest of the audit, and the best of what the other image tools do — taken as
+ideas, not as dependencies. Nothing here adds a library, a network call or a
+build step.
+
+**From Squoosh**
+- **Halving resize.** Shrinking by more than half in one `drawImage` throws away
+  detail the sampler never sees; the app now halves repeatedly and draws the last
+  step. Same trick pica and Squoosh use, no codec library.
+- **Auto format.** Encodes JPEG and WebP against the same budget and keeps the
+  smaller that fits. Squoosh's "compare the codecs" lesson, done without asking.
+
+**From ExifTool**
+- **"Every metadata block", not just the identifying ones.** Its `-all=`
+  behaviour, matched: every APP segment goes except JFIF's APP0 and Adobe's
+  APP14, which some decoders need to read the file at all. Maker notes and MPF
+  indexes included.
+- **The orientation nuance.** ExifTool has to restore `Orientation` after
+  stripping because removing it turns the photo. This app applies the tag to the
+  pixels first, so the file comes out upright without needing the tag back.
+- **A metadata reader.** Make, model, date, software, artist, GPS — shown in the
+  queue before anything is removed.
+
+**From every image-to-PDF tool on the web**
+- **Images into one A4 PDF.** The JPEG goes in as a JPEG — PDF has a filter for
+  exactly that — so the bytes the app encoded are the bytes in the document, with
+  no second generation. Written by hand: objects, xref table, trailer.
+
+**The last of the audit**
+- The list repaints one row at a time instead of all of them, so a batch no
+  longer re-decodes every preview on every transition.
+- An unrecognised APP1 block is named in words instead of a code, so "still
+  there: an APP1 block we do not recognise" is what the badge says.
+- The engine's `plan()` is gone — the view had its own localised version, and two
+  implementations of one idea is one too many.
+
+206 assertions, and 27 browser checks.
+
 ## 1.2.0 — 2026-11-01
 
 The audit, answered. Every finding in `AUDIT` terms was either fixed or

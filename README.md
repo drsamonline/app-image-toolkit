@@ -34,10 +34,11 @@ this repository, and written back out. No build step, no runtime dependency — 
 | **Resize** | contain inside a box, aspect kept, never upscaled, never rounded to zero |
 | **Crop and turn** | square, 4:3, 3:4, 16:9, 9:16; 90°/180°; mirror — and the EXIF orientation is read before the strip, so a portrait photo is not written out sideways |
 | **Compress** | the highest quality that still fits a byte budget — a binary search, seven encoder calls at the very worst, drawn as a curve |
-| **Convert** | JPEG, PNG, WebP, GIF and BMP in; JPEG, PNG or WebP out |
-| **Strip** | EXIF, XMP, IPTC, JPEG comments; PNG `eXIf`/`tEXt`/`iTXt`/`zTXt` — the colour profile is kept unless you say otherwise |
+| **Convert** | JPEG, PNG, WebP, GIF and BMP in; JPEG, PNG or WebP out — or <em>Auto</em>, which encodes two and keeps the smaller |
+| **Strip** | EXIF, XMP, IPTC, JPEG comments; PNG `eXIf`/`tEXt`/`iTXt`/`zTXt` — the colour profile is kept unless you say otherwise, and “every metadata block” takes the maker notes too |
 | **Check** | the *output* bytes are read back: "checked: nothing left" means the file that will be written really has nothing identifying in it |
-| **Batch** | paste a screenshot in, queue as many as you like, give any one of them its own settings, leave with one ZIP, or a per-file report saying exactly what was done |
+| **Inspect** | before anything is removed, the queue shows what the file says about itself: camera, model, date, and whether there is a GPS block |
+| **Batch** | paste a screenshot in, queue as many as you like, give any one of them its own settings, leave with one ZIP, one A4 PDF, or a per-file report saying exactly what was done |
 
 The pixels are never touched by the strip: everything from the JPEG scan onwards is kept byte for
 byte, and the PNG colour and image chunks are copied whole.
@@ -74,13 +75,14 @@ it reports **3.29 MB → 286 KB**, 1600 × 1200, GPS gone, checked.
 ## Run it
 
 ```bash
-node test-node.js                      # the proof: 191 assertions, no dependencies
+node test-node.js                      # the proof: 206 assertions, no dependencies
 python3 -m http.server -d docs 8000    # then open http://localhost:8000/play/
 
 python3 scripts/version.py             # one version, in every place it is written
 python3 scripts/icons.py               # the icon set, from assets/icon.svg
 python3 scripts/badges.py              # badges, with the counts computed
 python3 scripts/bundle.py              # the whole app as one HTML file
+python3 scripts/uitest.py              # the app in a headless browser: 27 checks
 python3 scripts/shot.py --help         # screenshots of pages that have settled
 ```
 
@@ -93,7 +95,7 @@ docs/index.html            the landing page — its own design, not the app's
 docs/play/index.html       the app
 docs/play/app.js           the view: queue and per-photo settings, results, preview, chart, ZIP
 docs/play/imgtool.js       the engine — sniff, dimensions, EXIF, orientation, strip, check,
-                           fit, budget, ZIP
+                           fit, budget, ZIP, PDF
 docs/play/i18n.js          English, Hindi and Gujarati, one table
 docs/play/sample.js        the sample photo, painted on a canvas when it is needed
 docs/play/sw.js            the offline worker — network-first HTML, cache bumped per release

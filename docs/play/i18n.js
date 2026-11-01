@@ -109,7 +109,13 @@
     "q.strip": "Privacy",
     "theme.label": "Switch between light and dark",
     "lang.label": "Language",
-    "status.done": "{n} done, {bad} failed"
+    "status.done": "{n} done, {bad} failed",
+    "fmt.auto": "Auto — the smallest that fits",
+    "opt.stripAll": "Remove every metadata block, not only the identifying ones",
+    "btn.pdf": "Download as PDF",
+    "meta.whats": "What is in this file ({n})",
+    "badge.left": "still there: {what}",
+    "left.app1": "an APP1 block we do not recognise"
   };
 
   var HI = {
@@ -211,7 +217,13 @@
     "q.strip": "निजता",
     "theme.label": "हल्के और गहरे रंग के बीच बदलें",
     "lang.label": "भाषा",
-    "status.done": "{n} हो गए, {bad} नहीं हुए"
+    "status.done": "{n} हो गए, {bad} नहीं हुए",
+    "fmt.auto": "ऑटो — जो सबसे छोटा बने",
+    "opt.stripAll": "हर मेटाडेटा ब्लॉक हटाएँ, सिर्फ़ पहचान वाले नहीं",
+    "btn.pdf": "PDF में डाउनलोड करें",
+    "meta.whats": "इस फ़ाइल में क्या है ({n})",
+    "badge.left": "अभी भी मौजूद: {what}",
+    "left.app1": "एक APP1 ब्लॉक जिसे हम नहीं पहचानते"
   };
 
   var GU = {
@@ -313,7 +325,13 @@
     "q.strip": "ગોપનીયતા",
     "theme.label": "હળવા અને ઘેરા રંગ વચ્ચે બદલો",
     "lang.label": "ભાષા",
-    "status.done": "{n} થઈ ગયા, {bad} નહીં થયા"
+    "status.done": "{n} થઈ ગયા, {bad} નહીં થયા",
+    "fmt.auto": "ઓટો — જે સૌથી નાનું બને",
+    "opt.stripAll": "બધા મેટાડેટા બ્લોક દૂર કરો, ફક્ત ઓળખવાળા નહીં",
+    "btn.pdf": "PDF માં ડાઉનલોડ કરો",
+    "meta.whats": "આ ફાઇલમાં શું છે ({n})",
+    "badge.left": "હજી પણ છે: {what}",
+    "left.app1": "એક APP1 બ્લોક જે અમે ઓળખતા નથી"
   };
 
   var TABLES = { en: EN, hi: HI, gu: GU };

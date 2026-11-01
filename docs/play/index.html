@@ -82,11 +82,28 @@
   .preview .tag{position:absolute;top:6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;background:rgba(0,0,0,.55);color:#fff;padding:2px 6px;border-radius:4px;line-height:1.4}
   .preview .tag.l{left:6px}
   .preview .tag.r{right:6px}
-  .preview input[type=range]{position:relative;display:block;width:100%;margin:0;padding:0 0 6px;background:var(--card)}
+  /* The handle sits on the picture, not under it: the after layer covers the
+     whole frame, so a slider in the flow would be drawn on top of the image
+     anyway — better to place it there on purpose. */
+  .preview input[type=range]{-webkit-appearance:none;appearance:none;position:absolute;
+    left:0;right:0;bottom:0;width:100%;height:20px;margin:0;padding:0 8px;
+    background:linear-gradient(to top,rgba(0,0,0,.35),rgba(0,0,0,0))}
+  .preview input[type=range]::-webkit-slider-runnable-track{height:3px;background:rgba(255,255,255,.75);border-radius:2px}
+  .preview input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;
+    margin-top:-8px;border-radius:50%;background:var(--acc);border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.4)}
+  .preview input[type=range]::-moz-range-track{height:3px;background:var(--track);border-radius:2px}
+  .preview input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:var(--acc);border:2px solid var(--card)}
   .chart{margin-top:8px}
   .chart canvas{display:block;width:100%;max-width:340px;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
   .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .qrow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .meta-panel{margin-top:8px;font-size:13px}
+  .meta-panel summary{cursor:pointer;color:var(--mut);width:auto;display:inline-block}
+  .meta-panel ul{margin:6px 0 0;padding-left:18px;color:var(--mut)}
+  .meta-panel li{margin:1px 0}
+  .meta-panel b{color:var(--ink);font-weight:600}
   .tiny{font-size:12.5px;padding:5px 10px}
   span.tiny{font-size:12px}
   .rowopts{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--field)}
@@ -134,6 +151,7 @@
       <div>
         <label for="format" data-i18n="opt.format">Output format</label>
         <select id="format">
+          <option value="auto" data-i18n="fmt.auto">Auto — the smallest that fits</option>
           <option value="keep" data-i18n="fmt.keep">Keep the format</option>
           <option value="jpeg">JPEG</option>
           <option value="webp">WebP</option>
@@ -176,6 +194,7 @@
         <label data-i18n="opt.privacy">Privacy</label>
         <label style="font-size:14px;color:var(--ink)"><input id="strip" type="checkbox" checked> <span data-i18n="opt.strip">Remove GPS and metadata</span></label>
         <label style="font-size:14px;color:var(--ink);margin-top:4px"><input id="keepColour" type="checkbox" checked> <span data-i18n="opt.colour">Keep the colour profile (ICC)</span></label>
+        <label style="font-size:14px;color:var(--ink);margin-top:4px"><input id="stripAll" type="checkbox"> <span data-i18n="opt.stripAll">Remove every metadata block, not only the identifying ones</span></label>
       </div>
       <div>
         <p class="mut" style="font-size:13px;margin:0" data-i18n="opt.note">Your photos stay on this device — the whole point of stripping the location is that the file never travels to a server to be stripped.</p>
@@ -193,6 +212,7 @@
       <button id="sample" class="ghost" type="button" data-i18n="btn.sample">No photo handy? Use the sample</button>
       <button id="clear" class="ghost" type="button" data-i18n="btn.clear">Clear</button>
       <button id="zipBtn" class="ghost" type="button" hidden data-i18n="btn.zip">Download all as ZIP</button>
+      <button id="pdfBtn" class="ghost" type="button" hidden data-i18n="btn.pdf">Download as PDF</button>
     </div>
   </section>
 

@@ -114,6 +114,7 @@
       format: $("format").value,
       strip: $("strip").checked,
       keepColour: $("keepColour").checked,
+      stripAll: $("stripAll").checked,
       rotate: $("rotate").value,
       crop: $("crop").value
     };
@@ -155,6 +156,7 @@
         info.hasGps = ImgTool.hasGps(bytes);
         info.hasExif = ImgTool.exifTags(bytes).length > 0;
         info.orientation = ImgTool.orientation(bytes);
+        info.tags = ImgTool.exifSummary(bytes);
       }
       return info;
     });
@@ -207,6 +209,7 @@
         '<div class="name">' + esc(item.file.name) + "</div>" +
         '<div class="meta num">' + ImgTool.formatBytes(item.file.size) + "</div>" +
         planList(item.plan) +
+        metadataList(item) +
         '<div class="qrow">' +
           '<button class="ghost tiny" type="button" data-own="' + i + '">' +
             esc(item.opts ? t("q.back") : t("q.own")) + "</button>" +
@@ -217,6 +220,7 @@
         "</div>";
     }).join("");
     $("zipBtn").hidden = state.results.length === 0;
+    $("pdfBtn").hidden = state.results.length === 0;
   }
 
   // The same controls as the panel, for one photo. A queue where every file
@@ -258,6 +262,7 @@
           '<label style="font-size:12px">' + esc(t("q.strip")) + "</label>" +
           '<label style="font-size:14px;color:var(--ink)"><input data-opt="strip" type="checkbox"' + (opts.strip ? " checked" : "") + "> " + esc(t("opt.strip")) + "</label>" +
           '<label style="font-size:14px;color:var(--ink);margin-top:4px"><input data-opt="keepColour" type="checkbox"' + (opts.keepColour ? " checked" : "") + "> " + esc(t("opt.colour")) + "</label>" +
+          '<label style="font-size:14px;color:var(--ink);margin-top:4px"><input data-opt="stripAll" type="checkbox"' + (opts.stripAll ? " checked" : "") + "> " + esc(t("opt.stripAll")) + "</label>" +
         "</div>" +
       "</div>" +
       '<div class="actions"><button class="ghost tiny" type="button" data-copy="' + i + '">' + esc(t("q.copy")) + "</button></div>" +
@@ -272,6 +277,7 @@
       format: q("format").value,
       strip: q("strip").checked,
       keepColour: q("keepColour").checked,
+      stripAll: q("stripAll").checked,
       rotate: q("rotate").value,
       crop: q("crop").value
     };
@@ -326,6 +332,18 @@
     }
   });
 
+  // What is actually in the file, before anything is taken out of it. A strip
+  // you can see is a strip you can trust.
+  function metadataList(item) {
+    if (!item.info || !item.info.tags || !item.info.tags.length) return "";
+    return '<details class="meta-panel"><summary>' +
+      esc(t("meta.whats", { n: item.info.tags.length })) + "</summary><ul>" +
+      item.info.tags.map(function (tag) {
+        return "<li><b>" + esc(tag.name) + "</b> " + esc(tag.value || "") + "</li>";
+      }).join("") +
+      "</ul></details>";
+  }
+
   function planList(steps) {
     if (!steps || !steps.length) return "";
     return '<ul class="plan"><li>' + steps.map(esc).join("</li><li>") + "</li></ul>";
@@ -368,6 +386,7 @@
     $("files").value = "";
     $("run").disabled = true;
     $("zipBtn").hidden = true;
+    $("pdfBtn").hidden = true;
     renderQueue();
   });
 
@@ -438,6 +457,24 @@
     return { x: Math.round((width - w) / 2), y: Math.round((height - h) / 2), w: w, h: h };
   }
 
+  // Shrinking by more than half in a single drawImage throws away detail the
+  // sampler never sees. Halving first keeps it — the same trick pica and Squoosh
+  // use — and it costs nothing but a few small canvases.
+  function halve(img, rect, destW, destH) {
+    var src = img, r = rect;
+    while (r.w > destW * 2 && r.h > destH * 2) {
+      var next = document.createElement("canvas");
+      next.width = Math.max(1, Math.round(r.w / 2));
+      next.height = Math.max(1, Math.round(r.h / 2));
+      var g = next.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(src, r.x, r.y, r.w, r.h, 0, 0, next.width, next.height);
+      src = next;
+      r = { x: 0, y: 0, w: next.width, h: next.height };
+    }
+    return { src: src, rect: r };
+  }
+
   // Draw the source once, rotated, mirrored, cropped and fitted — in that order,
   // on one canvas, so a photo is decoded and encoded exactly once.
   function render(img, srcW, srcH, opts, transform) {
@@ -461,17 +498,55 @@
     var dw = transform.rot === 90 || transform.rot === 270 ? height : width;
     var dh = transform.rot === 90 || transform.rot === 270 ? width : height;
 
+    var scaled = halve(img, crop, dw, dh);
     ctx.save();
     ctx.translate(width / 2, height / 2);
     if (transform.rot) ctx.rotate((transform.rot * Math.PI) / 180);
     if (transform.flip) ctx.scale(-1, 1);
-    ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, -dw / 2, -dh / 2, dw, dh);
+    ctx.drawImage(scaled.src, scaled.rect.x, scaled.rect.y, scaled.rect.w, scaled.rect.h,
+      -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
 
     return { canvas: canvas, width: width, height: height };
   }
 
   /* ---------------------------------------------------------- processing */
+
+  function fixedFormat(info, opts) {
+    var format = opts.format === "keep" ? info.format : opts.format;
+    if (format !== "jpeg" && format !== "webp" && format !== "png") format = "jpeg";
+    return format;
+  }
+
+  function encodeWith(canvas, format, opts, steps) {
+    var mime = MIME[format];
+    if (format === "png" || !opts.targetBytes) {
+      return toBlob(canvas, mime, 0.92).then(function (b) {
+        return { blob: b, quality: null, fits: true, history: [], format: format };
+      });
+    }
+    return ImgTool.budget(opts.targetBytes, function (q) {
+      return toBlob(canvas, mime, q).then(function (b) { return { size: b.size, blob: b }; });
+    }, { steps: steps || 6 }).then(function (r) {
+      return { blob: r.out.blob, quality: r.quality, fits: r.fits, history: r.history, format: format };
+    });
+  }
+
+  // "Auto" is Squoosh's lesson, applied without asking: encode the two formats
+  // that matter, keep the smaller one that still fits the budget. Both searches
+  // get the full six steps — a shorter one costs real kilobytes at the top of
+  // WebP's quality curve, which is exactly where this matters.
+  function encodeAuto(canvas, opts) {
+    var formats = ["webp", "jpeg"];
+    return Promise.all(formats.map(function (f) {
+      return encodeWith(canvas, f, opts, 6);
+    })).then(function (out) {
+      var fitting = out.filter(function (o) { return o.fits !== false; });
+      var pool = fitting.length ? fitting : out;
+      pool.sort(function (a, b) { return a.blob.size - b.blob.size; });
+      return pool[0];
+    });
+  }
 
   function processOne(file, opts) {
     var before = file.size;
@@ -486,7 +561,7 @@
       var gps = ImgTool.hasGps(bytes);
       var tags = ImgTool.exifTags(bytes);
       var cleaned = opts.strip
-        ? ImgTool.stripMetadata(bytes, { keepColour: opts.keepColour })
+        ? ImgTool.stripMetadata(bytes, { keepColour: opts.keepColour, stripAll: opts.stripAll })
         : { bytes: bytes, removed: [] };
 
       // The claim, checked: what is left in the bytes that will actually be
@@ -507,31 +582,18 @@
         var transform = transformFor(autoOriented ? 1 : orientation, opts.rotate);
         var drawn = render(img, w, h, opts, transform);
 
-        var outFormat = opts.format === "keep" ? info.format : opts.format;
-        if (outFormat !== "jpeg" && outFormat !== "webp" && outFormat !== "png") outFormat = "jpeg";
-        var mime = MIME[outFormat];
+        var encoding = opts.format === "auto"
+          ? encodeAuto(drawn.canvas, opts)
+          : encodeWith(drawn.canvas, fixedFormat(info, opts), opts, 6);
 
-        var encoded;
-        if (outFormat === "png" || !opts.targetBytes) {
-          encoded = toBlob(drawn.canvas, mime, 0.92).then(function (b) {
-            return { blob: b, quality: null, fits: true, history: [] };
-          });
-        } else {
-          encoded = ImgTool.budget(opts.targetBytes, function (q) {
-            return toBlob(drawn.canvas, mime, q).then(function (b) { return { size: b.size, blob: b }; });
-          }, { steps: 6 }).then(function (r) {
-            return { blob: r.out.blob, quality: r.quality, fits: r.fits, history: r.history };
-          });
-        }
-
-        return encoded.then(function (out) {
+        return encoding.then(function (out) {
           return {
             name: file.name,
             before: before,
             after: out.blob.size,
             blob: out.blob,
-            mime: mime,
-            format: outFormat,
+            mime: MIME[out.format],
+            format: out.format,
             sourceFormat: info.format,
             width: { width: drawn.width, height: drawn.height },
             gps: gps,
@@ -569,6 +631,7 @@
     say(t("results.working"));
     $("results").innerHTML = '<p class="mut">' + esc(t("results.working")) + "</p>";
     $("zipBtn").hidden = true;
+    $("pdfBtn").hidden = true;
 
     var rows = items.map(function (item) {
       return { file: item.file, opts: item.opts || opts, status: "waiting" };
@@ -578,7 +641,7 @@
     rows.forEach(function (row, i) {
       chain = chain.then(function () {
         row.status = "working";
-        renderRows(rows);
+        paintRow(rows, i);
         return processOne(row.file, row.opts).then(function (r) {
           row.status = "done";
           row.result = r;
@@ -586,7 +649,7 @@
         }).catch(function (err) {
           row.status = "error";
           row.error = describeError(err);
-        }).then(function () { renderRows(rows); });
+        }).then(function () { paintRow(rows, i); });
       });
     });
 
@@ -598,12 +661,24 @@
       $("run").textContent = t("btn.process");
       $("results").setAttribute("aria-busy", "false");
       $("zipBtn").hidden = state.results.length === 0;
+      $("pdfBtn").hidden = state.results.length === 0;
       renderResults(rows);
       refreshCounter();
       var ok = rows.filter(function (r) { return r.status === "done"; }).length;
       var bad = rows.length - ok;
       say(t("status.done", { n: ok, bad: bad }));
     });
+  }
+
+  // "app1" is what the engine calls an APP1 block it does not recognise — a
+  // maker note, usually. It is kept rather than guessed at, so the app says so
+  // instead of claiming a clean file.
+  function describeLeft(list) {
+    return list.map(function (kind) {
+      if (kind === "app1") return t("left.app1");
+      if (kind === "APP1") return t("left.app1");
+      return kind;
+    }).join(", ");
   }
 
   function describeError(err) {
@@ -617,16 +692,37 @@
 
   /* ------------------------------------------------------------- results */
 
-  function renderRows(rows) {
+  // One row's markup, including its wrapper, so a single row can be replaced
+  // without touching the rest of the list. Rebuilding twenty rows to report that
+  // one of them finished re-decodes twenty previews each time.
+  function rowHtml(rows, index) {
+    var row = rows[index];
     var done = rows.filter(function (r) { return r.status === "done"; });
-    $("results").innerHTML = rows.map(function (row) {
-      var head = '<div class="name">' + esc(row.file.name) + "</div>";
-      if (row.status === "waiting") return '<div class="item">' + head + '<div class="meta num">' + ImgTool.formatBytes(row.file.size) + "</div></div>";
-      if (row.status === "working") return '<div class="item">' + head + '<div class="meta">' + esc(t("btn.working")) + "</div></div>";
-      if (row.status === "error") return '<div class="item">' + head + '<div class="err">' + esc(row.error) + "</div></div>";
-      return rowMarkup(row.result, done.indexOf(row));
-    }).join("");
+    var head = '<div class="name">' + esc(row.file.name) + "</div>";
+    var inner;
+    if (row.status === "waiting") inner = head + '<div class="meta num">' + ImgTool.formatBytes(row.file.size) + "</div>";
+    else if (row.status === "working") inner = head + '<div class="meta">' + esc(t("btn.working")) + "</div>";
+    else if (row.status === "error") inner = head + '<div class="err">' + esc(row.error) + "</div>";
+    else inner = rowMarkup(row.result, done.indexOf(row));
+    return '<div class="item" data-slot="' + index + '">' + inner + "</div>";
+  }
+
+  function renderRows(rows) {
+    var html = "";
+    for (var i = 0; i < rows.length; i++) html += rowHtml(rows, i);
+    $("results").innerHTML = html;
     wireRows(rows);
+  }
+
+  // Replace exactly one row, and wire only what is inside it.
+  function paintRow(rows, index) {
+    var el = $("results").querySelector('[data-slot="' + index + '"]');
+    if (!el) { renderRows(rows); return; }
+    var holder = document.createElement("div");
+    holder.innerHTML = rowHtml(rows, index);
+    var fresh = holder.firstChild;
+    el.parentNode.replaceChild(fresh, el);
+    wireOne(rows, fresh);
   }
 
   // Show the last results again — for a language change, or a settings change
@@ -648,15 +744,19 @@
       badges += '<span class="badge warn">' + esc(t("badge.unverified")) + "</span>";
     }
     if (r.orientation && r.orientation !== 1) badges += '<span class="badge">' + esc(t("badge.upright")) + "</span>";
+    if (r.format !== r.sourceFormat) badges += '<span class="badge">' + esc(r.format.toUpperCase()) + "</span>";
     if (r.quality !== null && r.quality !== undefined) badges += '<span class="badge">' + esc(t("badge.quality", { n: Math.round(r.quality * 100) })) + "</span>";
     if (r.fits === false) badges += '<span class="badge warn">' + esc(t("badge.notarget")) + "</span>";
+    if (!r.clean && r.left && r.left.length) {
+      badges += '<span class="badge warn">' + esc(t("badge.left", { what: describeLeft(r.left) })) + "</span>";
+    }
     if (r.format === "png" && r.after >= r.before) badges += '<span class="badge warn">' + esc(t("badge.png")) + "</span>";
 
     var dim = r.width ? r.width.width + " × " + r.width.height : "";
     var meta = ImgTool.formatBytes(r.before) + " → " + ImgTool.formatBytes(r.after) +
       (saved > 0 ? "  (" + t("saved", { p: saved }) + ")" : "") + (dim ? "  ·  " + dim : "");
 
-    return '<div class="item" data-row="' + index + '">' +
+    return '<div data-row="' + index + '">' +
       '<div class="name">' + esc(r.name) + "</div>" +
       '<div class="meta num">' + esc(meta) + "</div>" +
       badges +
@@ -676,10 +776,18 @@
   }
 
   function wireRows(rows) {
+    wireIn(rows, $("results"));
+  }
+
+  function wireOne(rows, element) {
+    wireIn(rows, element);
+  }
+
+  function wireIn(rows, scope) {
     var finished = rows.filter(function (r) { return r.status === "done"; });
 
-    Array.prototype.forEach.call($("results").querySelectorAll("[data-wipe]"), function (input) {
-      var row = $("results").querySelector('[data-row="' + input.getAttribute("data-wipe") + '"]');
+    Array.prototype.forEach.call(scope.querySelectorAll("[data-wipe]"), function (input) {
+      var row = input.closest ? input.closest(".item") : null;
       var after = row && row.querySelector(".after");
       if (!after) return;
       var set = function () { after.style.clipPath = "inset(0 " + (100 - input.value) + "% 0 0)"; };
@@ -687,12 +795,12 @@
       set();
     });
 
-    Array.prototype.forEach.call($("results").querySelectorAll("[data-chart]"), function (canvas) {
+    Array.prototype.forEach.call(scope.querySelectorAll("[data-chart]"), function (canvas) {
       var r = finished.filter(function (x) { return x.result; })[parseInt(canvas.getAttribute("data-chart"), 10)];
       if (r) drawChart(canvas, r.result);
     });
 
-    Array.prototype.forEach.call($("results").querySelectorAll("[data-dl]"), function (btn) {
+    Array.prototype.forEach.call(scope.querySelectorAll("[data-dl]"), function (btn) {
       btn.addEventListener("click", function () {
         var r = finished[parseInt(btn.getAttribute("data-dl"), 10)];
         if (!r || !r.result) return;
@@ -706,7 +814,7 @@
       });
     });
 
-    Array.prototype.forEach.call($("results").querySelectorAll("[data-report]"), function (btn) {
+    Array.prototype.forEach.call(scope.querySelectorAll("[data-report]"), function (btn) {
       btn.addEventListener("click", function () {
         var r = finished[parseInt(btn.getAttribute("data-report"), 10)];
         if (!r || !r.result) return;
@@ -831,6 +939,46 @@
       Export.blob("image-toolkit.zip", new Blob([bytes], { type: "application/zip" }), "application/zip");
     }).catch(function () {
       btn.textContent = t("btn.notwritten");
+    }).then(function () {
+      btn.disabled = false;
+      refreshCounter();
+    });
+  });
+
+  /* ----------------------------------------------------------------- pdf */
+
+  // A PDF holds a JPEG as a JPEG — DCTDecode is a filter, not a re-encode — so
+  // what goes in is exactly the bytes the app just produced. Anything that is
+  // not a JPEG is re-encoded once, on the way in.
+  function asJpegBytes(result) {
+    if (result.format === "jpeg") {
+      return result.blob.arrayBuffer().then(function (b) { return new Uint8Array(b); });
+    }
+    return decode(result.blob).then(function (img) {
+      var canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      var g = canvas.getContext("2d");
+      g.fillStyle = "#fff";
+      g.fillRect(0, 0, canvas.width, canvas.height);
+      g.drawImage(img, 0, 0);
+      return toBlob(canvas, "image/jpeg", 0.92);
+    }).then(function (blob) {
+      return blob.arrayBuffer();
+    }).then(function (buf) { return new Uint8Array(buf); });
+  }
+
+  $("pdfBtn").addEventListener("click", function () {
+    var done = state.results.filter(function (r) { return r.blob; });
+    if (!done.length) return;
+    var btn = $("pdfBtn");
+    btn.disabled = true;
+    Promise.all(done.map(asJpegBytes)).then(function (images) {
+      var doc = ImgTool.pdf(images.map(function (bytes) { return { bytes: bytes }; }));
+      Export.blob("image-toolkit.pdf", new Blob([doc], { type: "application/pdf" }), "application/pdf");
+    }).catch(function (e) {
+      btn.textContent = t("btn.notwritten");
+      btn.title = (e && e.message) || "";
     }).then(function () {
       btn.disabled = false;
       refreshCounter();

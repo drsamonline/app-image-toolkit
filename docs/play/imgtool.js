@@ -199,7 +199,7 @@
     for (var i = 0; i < count; i++) {
       var e = at + 2 + i * 12;
       if (e + 12 > b.length) break;
-      tags.push({ tag: u16(b, e), type: u16(b, e + 2), value: u32(b, e + 8), at: e });
+      tags.push({ tag: u16(b, e), type: u16(b, e + 2), count: u32(b, e + 4), value: u32(b, e + 8), at: e });
     }
     return { tags: tags, u16: u16, u32: u32, base: base, le: le };
   }
@@ -268,6 +268,55 @@
       }
     }
     return 1;
+  }
+
+  var TAG_NAMES = {
+    0x010F: "Make", 0x0110: "Model", 0x0112: "Orientation", 0x0131: "Software",
+    0x0132: "DateTime", 0x013B: "Artist", 0x829A: "Exposure", 0x829D: "Aperture",
+    0x8827: "ISO", 0x920A: "Focal length", 0x9286: "User comment", 0xA002: "Width",
+    0xA003: "Height", 0x8825: "GPS"
+  };
+
+  function tagText(b, ifd, t) {
+    if (t.type === 2) {                                   // ASCII
+      var at = t.count <= 4 ? t.at + 8 : ifd.base + t.value;
+      var s = "";
+      for (var i = 0; i < t.count && at + i < b.length; i++) {
+        var c = b[at + i];
+        if (!c) break;
+        s += String.fromCharCode(c);
+      }
+      return s.replace(/[\u0000-\u001f]/g, "").trim();
+    }
+    if (t.type === 3) return String(ifd.u16(b, t.at + 8));
+    if (t.type === 4) return String(t.value);
+    if (t.type === 5) return "ratio";                     // rationals: named, not computed
+    return "";
+  }
+
+  // What the file says about itself, in words a person can read. The app shows
+  // this before it removes anything: a strip you can see is a strip you can
+  // trust, and it is the one place a camera's make, model and date are useful.
+  function exifSummary(input) {
+    var b = toBytes(input);
+    var f = sniff(b);
+    var out = [];
+    if (!f) return out;
+    var base = exifBlock(b, f);
+    if (base < 0) return out;
+    var ifd = tiffIfd(b, base);
+    if (!ifd) return out;
+    for (var i = 0; i < ifd.tags.length; i++) {
+      var t = ifd.tags[i];
+      var name = TAG_NAMES[t.tag];
+      if (!name) continue;
+      if (t.tag === 0x8825) continue;               // the pointer, reported below
+      out.push({ tag: t.tag, name: name, value: tagText(b, ifd, t) });
+    }
+    if (hasGps(b) && !out.some(function (e) { return e.tag === 0x8825; })) {
+      out.push({ tag: 0x8825, name: "GPS", value: "present" });
+    }
+    return out;
   }
 
   // What identifying blocks are still in this file — asked of the OUTPUT, so
@@ -356,6 +405,10 @@
     var b = toBytes(input);
     var f = sniff(b);
     var keepColour = !opts || opts.keepColour !== false;
+    // "Everything, not just what identifies you." ExifTool's -all= removes every
+    // APP segment except the JFIF one and Adobe's APP14, which some decoders
+    // need to read the file at all — the same rule, applied here.
+    var stripAll = !!(opts && opts.stripAll);
     if (!f) return { bytes: b, removed: [], format: null, changed: false };
 
     if (f.format === "jpeg") {
@@ -369,10 +422,13 @@
           continue;
         }
         var kind = segmentKind(b, piece);
+        var everything = stripAll && piece.marker >= 0xE1 && piece.marker <= 0xEF && piece.marker !== 0xEE;
         if (kind === "exif" || kind === "xmp" || kind === "iptc" || kind === "comment") {
           removed.push(piece.name === "APP1" ? kind : piece.name);
         } else if (!keepColour && piece.marker === 0xE2) {
           removed.push("icc");            // the colour profile, only if asked
+        } else if (everything) {
+          removed.push(piece.marker === 0xE2 ? "icc" : piece.name);   // a maker note, an MPF index, anything
         } else {
           parts.push(b.subarray(piece.start, piece.start + 2 + piece.length));
         }
@@ -390,6 +446,10 @@
         var whole = b.subarray(c.start, c.start + 12 + c.length);
         if (PRIVACY_CHUNKS[c.type]) { gone.push(c.type); continue; }
         if (!keepColour && c.type === "iCCP") { gone.push("iCCP"); continue; }
+        // "Everything" means every ancillary chunk, keeping only what the picture
+        // needs to be drawn: the transparency table and, if asked, the profile.
+        var ancillary = c.type.charCodeAt(0) >= 0x61 && c.type.charCodeAt(0) <= 0x7A;
+        if (stripAll && ancillary && c.type !== "tRNS") { gone.push(c.type); continue; }
         kept.push(whole);
       }
       var png = concat(kept);
@@ -650,6 +710,104 @@
     return out;
   }
 
+  /* ------------------------------------------------------------------- pdf */
+
+  function latin1(s) {
+    var out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xFF;
+    return out;
+  }
+
+  function colourSpace(jpeg) {
+    var segs = jpegSegments(jpeg);
+    for (var i = 0; i < segs.length; i++) {
+      if (SOF[segs[i].marker]) {
+        var n = jpeg[segs[i].dataStart + 5];
+        if (n === 1) return "/DeviceGray";
+        if (n === 4) return "/DeviceCMYK";
+        return "/DeviceRGB";
+      }
+    }
+    return "/DeviceRGB";
+  }
+
+  // Images into one A4 document, one page each, fitted and centred. A JPEG goes
+  // in as it is — PDF has a filter for exactly that (DCTDecode), so the bytes
+  // the app just encoded are the bytes in the file, not a second generation.
+  function pdf(images, opts) {
+    if (!images || !images.length) throw new TypeError("a pdf needs at least one image");
+    var PAGE_W = 595.28, PAGE_H = 841.89;                 // A4, in points
+    var margin = opts && typeof opts.margin === "number" ? opts.margin : 18;
+    var parts = [], at = 0, offsets = {};
+
+    function put(text) {
+      var bytes = latin1(text);
+      var from = at;
+      parts.push(bytes);
+      at += bytes.length;
+      return from;
+    }
+    function putBytes(bytes) {
+      var from = at;
+      parts.push(bytes);
+      at += bytes.length;
+      return from;
+    }
+
+    put("%PDF-1.4\n");
+
+    var kids = [];
+    var pageObjs = [], imageObjs = [], contentObjs = [];
+    for (var i = 0; i < images.length; i++) {
+      pageObjs.push(4 + i * 3);
+      imageObjs.push(5 + i * 3);
+      contentObjs.push(6 + i * 3);
+      kids.push((4 + i * 3) + " 0 R");
+    }
+
+    offsets[1] = put("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+    offsets[2] = put("2 0 obj\n<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + images.length + " >>\nendobj\n");
+    offsets[3] = put("3 0 obj\n<< /Producer (Image Toolkit) /Creator (Image Toolkit) >>\nendobj\n");
+
+    for (i = 0; i < images.length; i++) {
+      var jpeg = toBytes(images[i].bytes);
+      var dim = dimensions(jpeg);
+      if (!dim) throw new TypeError("pdf() takes JPEGs: image " + (i + 1) + " is not one");
+      var w = dim.width, h = dim.height;
+      var scale = Math.min((PAGE_W - margin * 2) / w, (PAGE_H - margin * 2) / h);
+      var dw = (w * scale).toFixed(2), dh = (h * scale).toFixed(2);
+      var x = ((PAGE_W - w * scale) / 2).toFixed(2), y = ((PAGE_H - h * scale) / 2).toFixed(2);
+
+      offsets[pageObjs[i]] = put(
+        pageObjs[i] + " 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + PAGE_W + " " + PAGE_H + "]" +
+        " /Resources << /XObject << /Im0 " + imageObjs[i] + " 0 R >> >>" +
+        " /Contents " + contentObjs[i] + " 0 R >>\nendobj\n");
+
+      offsets[imageObjs[i]] = put(
+        imageObjs[i] + " 0 obj\n<< /Type /XObject /Subtype /Image /Width " + w + " /Height " + h +
+        " /ColorSpace " + colourSpace(jpeg) + " /BitsPerComponent 8 /Filter /DCTDecode /Length " +
+        jpeg.length + " >>\nstream\n");
+      putBytes(jpeg);
+      put("\nendstream\nendobj\n");
+
+      var content = "q " + dw + " 0 0 " + dh + " " + x + " " + y + " cm /Im0 Do Q";
+      offsets[contentObjs[i]] = put(
+        contentObjs[i] + " 0 obj\n<< /Length " + content.length + " >>\nstream\n" + content + "\nendstream\nendobj\n");
+    }
+
+    var total = 3 + images.length * 3;
+    var xref = at;
+    var table = "xref\n0 " + (total + 1) + "\n0000000000 65535 f \n";
+    for (var n = 1; n <= total; n++) {
+      var off = offsets[n] || 0;
+      table += ("0000000000" + off).slice(-10) + " 00000 n \n";
+    }
+    put(table);
+    put("trailer\n<< /Size " + (total + 1) + " /Root 1 0 R /Info 3 0 R >>\nstartxref\n" + xref + "\n%%EOF\n");
+
+    return concat(parts);
+  }
+
   /* -------------------------------------------------------------- helpers */
 
   function formatBytes(n) {
@@ -664,22 +822,6 @@
     return base + "-min." + ext;
   }
 
-  // The list the page shows, so the user sees the plan before the work.
-  function plan(info, opts) {
-    opts = opts || {};
-    var steps = [];
-    if (!info) return ["this file is not an image"];
-    if (info.format === "heic") return ["HEIC cannot be drawn by a browser, so it cannot be converted here"];
-    if (info.orientation && info.orientation !== 1) steps.push("turn the photo upright");
-    if (info.width && opts.maxW && info.width > opts.maxW) steps.push("resize to " + opts.maxW + " px wide");
-    if (info.hasGps) steps.push("remove the GPS location");
-    else if (info.hasExif) steps.push("remove the metadata");
-    if (opts.targetKB) steps.push("compress to under " + opts.targetKB + " KB");
-    if (opts.format && opts.format !== info.format) steps.push("convert " + info.format + " to " + opts.format);
-    if (!steps.length) steps.push("nothing to change");
-    return steps;
-  }
-
   return {
     sniff: sniff,
     dimensions: dimensions,
@@ -687,6 +829,7 @@
     pngChunks: pngChunks,
     hasGps: hasGps,
     exifTags: exifTags,
+    exifSummary: exifSummary,
     orientation: orientation,
     remaining: remaining,
     isClean: isClean,
@@ -697,9 +840,9 @@
     budget: budget,
     crc32: crc32,
     zip: zip,
+    pdf: pdf,
     jpegPieces: jpegPieces,
     formatBytes: formatBytes,
-    outName: outName,
-    plan: plan
+    outName: outName
   };
 }));

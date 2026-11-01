@@ -32,7 +32,13 @@ Two honest limits, stated because the app says them too:
 plain files. They are MIT; the copies here are unmodified — and "unmodified" is
 checked rather than remembered. `web-kit`'s `html` helper is an `innerHTML` sink
 that this app never calls: everything it renders is escaped by hand in `app.js`.
-It is noted here because a vendored file cannot be edited, only watched. `node test-node.js` hashes both files and fails
+It is noted here because a vendored file cannot be edited, only watched.
+
+`export-kit` also carries a ZIP writer. This app does not call it: the engine has
+its own, which the Node suite can test byte for byte — the kit's runs only in a
+browser, and an archive is exactly the kind of thing that fails quietly. The
+duplication is deliberate, and it is one file's worth, not two implementations
+drifting apart in the dark. `node test-node.js` hashes both files and fails
 if either stops matching the digests below.
 
 | file | sha256 |
