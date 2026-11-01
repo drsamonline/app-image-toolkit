@@ -34,7 +34,7 @@ this repository, and written back out. No build step, no runtime dependency — 
 | **Resize** | contain inside a box, aspect kept, never upscaled, never rounded to zero |
 | **Crop and turn** | square, 4:3, 3:4, 16:9, 9:16; 90°/180°; mirror — and the EXIF orientation is read before the strip, so a portrait photo is not written out sideways |
 | **Compress** | the highest quality that still fits a byte budget — a binary search, seven encoder calls at the very worst, drawn as a curve |
-| **Convert** | JPEG, PNG, WebP, GIF and BMP in; JPEG, PNG or WebP out — or <em>Auto</em>, which encodes two and keeps the smaller |
+| **Convert** | JPEG, PNG, WebP, GIF and BMP in; JPEG, PNG or WebP out — or <em>Auto</em>, which encodes two and keeps the smaller (a source that may carry transparency is compared against WebP alone, because JPEG would flatten it) |
 | **Strip** | EXIF, XMP, IPTC, JPEG comments; PNG `eXIf`/`tEXt`/`iTXt`/`zTXt` — the colour profile is kept unless you say otherwise, and “every metadata block” takes the maker notes too |
 | **Check** | the *output* bytes are read back: "checked: nothing left" means the file that will be written really has nothing identifying in it |
 | **Inspect** | before anything is removed, the queue shows what the file says about itself: camera, model, date, and whether there is a GPS block |
@@ -82,7 +82,7 @@ python3 scripts/version.py             # one version, in every place it is writt
 python3 scripts/icons.py               # the icon set, from assets/icon.svg
 python3 scripts/badges.py              # badges, with the counts computed
 python3 scripts/bundle.py              # the whole app as one HTML file
-python3 scripts/uitest.py              # the app in a headless browser: 27 checks
+python3 scripts/uitest.py              # the app in a headless browser: 30 checks
 python3 scripts/shot.py --help         # screenshots of pages that have settled
 ```
 

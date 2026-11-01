@@ -3,6 +3,42 @@
 Every entry names what changed and the assertion count at that tag. The count is
 the number `node test-node.js` printed, not an estimate.
 
+## 1.3.1 — 2026-11-01
+
+The final audit of the code the last three releases added — the PDF writer, the
+"everything" strip, the halving resize, the row-by-row repaint, auto format.
+
+**A bug that had been there since the first release**
+
+- A transparent PNG converted to JPEG came out with a **black** background. The
+  canvas starts black, and the white fill was applied only when the metadata was
+  *not* being stripped — the fill belongs to the output format, not to the strip.
+  It is now keyed to the format, so a logo keeps a white background and a
+  screenshot stops turning into a black box.
+
+**Auto, and transparency**
+
+- Auto compares JPEG and WebP — but JPEG has no alpha, and quietly turning a
+  logo's background black to win a few kilobytes is not a trade the app should
+  make on the user's behalf. A source that may carry transparency is compared
+  against WebP alone, which keeps it.
+
+**A switch that promised something it could not keep**
+
+- "Keep the colour profile" is disabled while "remove every metadata block" is
+  on, because that switch takes the profile too. The per-photo form does the
+  same.
+
+**Verified in the final pass**
+
+- A batch of three where two files are not images: one result, two named
+  failures, and the status line says "1 done, 2 failed".
+- PNG with "everything" stripped keeps its alpha and still opens in a real
+  decoder; the chunks left are IHDR, IDAT and IEND.
+- A PDF built from a WebP result re-encodes it once on the way in and reads back
+  as a valid page with one image.
+- 206 assertions, 30 browser checks.
+
 ## 1.3.0 — 2026-11-01
 
 The rest of the audit, and the best of what the other image tools do — taken as

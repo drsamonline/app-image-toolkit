@@ -286,7 +286,7 @@
         <div class="card">
           <span class="k">02 · COMPRESS</span>
           <h3>Hit a byte budget</h3>
-          <p>The highest quality that still fits — a binary search over the encoder, seven calls at the very worst, not a guess at a quality number — and every call is drawn as a curve, so the search is visible. If the budget cannot be reached it says so. Or pick <em>Auto</em> and it encodes JPEG and WebP and keeps the smaller — the trick Squoosh taught everyone, done without a codec library.</p>
+          <p>The highest quality that still fits — a binary search over the encoder, seven calls at the very worst, not a guess at a quality number — and every call is drawn as a curve, so the search is visible. If the budget cannot be reached it says so. Or pick <em>Auto</em> and it encodes JPEG and WebP and keeps the smaller — the trick Squoosh taught everyone, done without a codec library. A source that may carry transparency is compared against WebP alone, because JPEG would flatten it to black.</p>
         </div>
         <div class="card">
           <span class="k">03 · STRIP</span>
@@ -359,7 +359,7 @@ python3 scripts/version.py             # one version, in every place it is writt
 <footer>
   <div class="wrap">
     <span>© 2026 Dr Sohil Momin · PolyForm Noncommercial 1.0.0 · <a href="https://github.com/drsamonline/app-image-toolkit">source</a></span>
-    <span class="stamp">build 1.3.0 · 0 bytes leave this page</span>
+    <span class="stamp">build 1.3.1 · 0 bytes leave this page</span>
   </div>
 </footer>
 

@@ -207,6 +207,51 @@ def main():
             ok("it ends properly", doc.rstrip().endswith(b"%%EOF"))
             ok("it embeds the jpeg as a jpeg", b"/DCTDecode" in doc)
 
+        print("\ntransparency survives the right formats")
+        cdp.eval("document.getElementById('clear').click()")
+        cdp.eval("""(async function () {
+          var c = document.createElement('canvas'); c.width = 400; c.height = 300;
+          var g = c.getContext('2d'); g.fillStyle = '#00a000'; g.fillRect(120, 90, 160, 120);
+          var blob = await new Promise(function (r) { c.toBlob(r, 'image/png'); });
+          var f = new File([blob], 'alpha.png', { type: 'image/png' });
+          var dt = new DataTransfer(); dt.items.add(f);
+          var i = document.getElementById('files'); i.files = dt.files;
+          i.dispatchEvent(new Event('change'));
+        })()""")
+        time.sleep(2)
+
+        def run_alpha(fmt):
+            cdp.eval("""(function () {
+              var f = document.getElementById('format'); f.value = '%s';
+              f.dispatchEvent(new Event('change', { bubbles: true }));
+              var t = document.getElementById('target'); t.value = '0';
+              t.dispatchEvent(new Event('change', { bubbles: true }));
+              document.getElementById('run').click();
+            })()""" % fmt)
+            wait_for(cdp, "!document.getElementById('run').disabled", timeout=90)
+            time.sleep(0.4)
+            return cdp.eval("""(async function () {
+              var img = document.querySelector('[data-row] .after');
+              var c = document.createElement('canvas');
+              c.width = img.naturalWidth; c.height = img.naturalHeight;
+              var g = c.getContext('2d'); g.drawImage(img, 0, 0);
+              var d = g.getImageData(2, 2, 1, 1).data;
+              return d[0] + ',' + d[1] + ',' + d[2] + ',' + d[3];
+            })()""")
+
+        check("a transparent corner becomes white in a JPEG, not black", run_alpha("jpeg"), "255,255,255,255")
+        ok("auto keeps the transparency instead", run_alpha("auto").endswith(",0"))
+
+        print("\nthe profile switch follows the strip")
+        check("it is disabled when everything is being removed",
+              cdp.eval("""(function () {
+                var s = document.getElementById('stripAll');
+                s.checked = true; s.dispatchEvent(new Event('change', { bubbles: true }));
+                var off = document.getElementById('keepColour').disabled;
+                s.checked = false; s.dispatchEvent(new Event('change', { bubbles: true }));
+                return off && !document.getElementById('keepColour').disabled;
+              })()"""), True)
+
         print("\n%d passed, %d failed" % (passed, failed))
         return 1 if failed else 0
     finally:

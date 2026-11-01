@@ -100,9 +100,12 @@
     refreshPlans();
   });
 
-  ["maxw", "target", "format", "strip", "keepColour", "rotate", "crop"].forEach(function (id) {
+  ["maxw", "target", "format", "strip", "keepColour", "stripAll", "rotate", "crop"].forEach(function (id) {
     $(id).addEventListener("change", function () {
       $("preset").value = "custom";
+      // "Everything" takes the colour profile too, so the profile switch is a
+      // promise the app cannot keep while it is on.
+      $("keepColour").disabled = $("stripAll").checked;
       refreshPlans();
     });
   });
@@ -261,7 +264,7 @@
         "<div>" +
           '<label style="font-size:12px">' + esc(t("q.strip")) + "</label>" +
           '<label style="font-size:14px;color:var(--ink)"><input data-opt="strip" type="checkbox"' + (opts.strip ? " checked" : "") + "> " + esc(t("opt.strip")) + "</label>" +
-          '<label style="font-size:14px;color:var(--ink);margin-top:4px"><input data-opt="keepColour" type="checkbox"' + (opts.keepColour ? " checked" : "") + "> " + esc(t("opt.colour")) + "</label>" +
+          '<label style="font-size:14px;color:var(--ink);margin-top:4px"><input data-opt="keepColour" type="checkbox"' + (opts.keepColour ? " checked" : "") + (opts.stripAll ? " disabled" : "") + "> " + esc(t("opt.colour")) + "</label>" +
           '<label style="font-size:14px;color:var(--ink);margin-top:4px"><input data-opt="stripAll" type="checkbox"' + (opts.stripAll ? " checked" : "") + "> " + esc(t("opt.stripAll")) + "</label>" +
         "</div>" +
       "</div>" +
@@ -321,6 +324,8 @@
     var item = state.queue[index];
     if (!item) return;
     item.opts = optsFromRow(row);
+    var colour = row.querySelector('[data-opt="keepColour"]');
+    if (colour) colour.disabled = item.opts.stripAll;
     item.plan = planSteps(item.info, item.opts);
     var host = $("results").querySelector('[data-queue="' + index + '"]');
     if (host) {
@@ -477,7 +482,7 @@
 
   // Draw the source once, rotated, mirrored, cropped and fitted — in that order,
   // on one canvas, so a photo is decoded and encoded exactly once.
-  function render(img, srcW, srcH, opts, transform) {
+  function render(img, srcW, srcH, opts, transform, mime) {
     var crop = cropRect(srcW, srcH, opts.crop);
     var outW = transform.rot === 90 || transform.rot === 270 ? crop.h : crop.w;
     var outH = transform.rot === 90 || transform.rot === 270 ? crop.w : crop.h;
@@ -490,8 +495,10 @@
     var ctx = canvas.getContext("2d");
     ctx.imageSmoothingQuality = "high";
 
-    // A JPEG has no alpha; anything transparent would otherwise come out black.
-    if (!opts.strip) {
+    // A JPEG has no alpha, and the canvas starts black: a transparent logo
+    // converted to JPEG came out as a black box. The fill belongs to the output
+    // format, not to whether the metadata is being stripped.
+    if (mime === "image/jpeg") {
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, width, height);
     }
@@ -532,12 +539,16 @@
     });
   }
 
-  // "Auto" is Squoosh's lesson, applied without asking: encode the two formats
-  // that matter, keep the smaller one that still fits the budget. Both searches
-  // get the full six steps — a shorter one costs real kilobytes at the top of
-  // WebP's quality curve, which is exactly where this matters.
-  function encodeAuto(canvas, opts) {
-    var formats = ["webp", "jpeg"];
+  // "Auto" is Squoosh's lesson, applied without asking: encode the formats that
+  // matter, keep the smaller one that still fits the budget. Both searches get
+  // the full six steps — a shorter one costs real kilobytes at the top of WebP's
+  // quality curve, which is exactly where this matters.
+  //
+  // A source that may carry transparency is compared against WebP alone: JPEG
+  // has no alpha, and quietly turning a logo's background black to win a few
+  // kilobytes is not a trade this app should make on the user's behalf.
+  function encodeAuto(canvas, opts, mayHaveAlpha) {
+    var formats = mayHaveAlpha ? ["webp"] : ["webp", "jpeg"];
     return Promise.all(formats.map(function (f) {
       return encodeWith(canvas, f, opts, 6);
     })).then(function (out) {
@@ -580,11 +591,14 @@
         var autoOriented = !!(dim && dim.width !== dim.height &&
           w === dim.height && h === dim.width);
         var transform = transformFor(autoOriented ? 1 : orientation, opts.rotate);
-        var drawn = render(img, w, h, opts, transform);
+        var targetMime = opts.format === "auto" ? MIME.webp : MIME[fixedFormat(info, opts)];
+        var drawn = render(img, w, h, opts, transform, targetMime);
 
+        var mayHaveAlpha = info.format === "png" || info.format === "webp" || info.format === "gif";
         var encoding = opts.format === "auto"
-          ? encodeAuto(drawn.canvas, opts)
+          ? encodeAuto(drawn.canvas, opts, mayHaveAlpha)
           : encodeWith(drawn.canvas, fixedFormat(info, opts), opts, 6);
+
 
         return encoding.then(function (out) {
           return {
