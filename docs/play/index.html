@@ -113,6 +113,26 @@
   footer .line{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between}
   kbd{background:var(--field);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px;font-family:inherit}
   .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* ---------- desktop: the work area, with the settings beside it ----------
+     The app was one 820px column: options, then photos, then results, stacked.
+     From 1000px it takes the shape a tool wants — the photos you are working on
+     fill the left, and what to do with them sits in a panel on the right. */
+  @media (min-width:1000px){
+    header, footer { max-width:none; }
+    main{max-width:none;display:grid;gap:16px;padding:20px 24px;
+         grid-template-columns:minmax(0,1fr) 384px;
+         grid-template-areas:"photos opts" "photos out";
+         align-items:start}
+    main > .card:nth-child(1){grid-area:opts}
+    main > .card:nth-child(2){grid-area:photos;min-height:60vh}
+    main > .card:nth-child(3){grid-area:out}
+    main > .card{margin:0}
+    main .grid{grid-template-columns:1fr 1fr}
+  }
+  @media (min-width:1500px){
+    main{grid-template-columns:minmax(0,1fr) 440px}
+  }
 </style>
 </head>
 <body>
