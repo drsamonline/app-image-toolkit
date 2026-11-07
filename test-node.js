@@ -29,6 +29,41 @@ function eq(name, actual, expected) {
 }
 function section(t) { console.log("\n" + t); }
 
+/* ---------------------------------------------------------------- offline
+ * What counts as "reaching the network" is what the browser FETCHES on its own:
+ * src / srcset / poster, a <link href>, a CSS url() or @import, a worker's
+ * importScripts. An <a href> is somewhere the reader may choose to go — the
+ * support block (Ko-fi, PayPal, the bookstore, the hub) and the repo links are
+ * anchors, and an anchor is not a network dependency.
+ *
+ * This used to grep every `https?://` in the file, so the moment the support
+ * block was added to the two pages, three green assertions went red without the
+ * app gaining a single request. The rule is now the one the sentence claims.
+ */
+function loadsFrom(text) {
+  var out = [], m, re;
+  re = /\b(?:src|srcset|poster)\s*=\s*["']([^"']+)["']/gi;
+  while ((m = re.exec(text))) out.push(m[1]);
+  re = /<link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((m = re.exec(text))) out.push(m[1]);
+  re = /url\(\s*["']?([^"')]+)["']?\s*\)/gi;
+  while ((m = re.exec(text))) out.push(m[1]);
+  re = /@import\s+(?:url\(\s*)?["']([^"']+)["']/gi;
+  while ((m = re.exec(text))) out.push(m[1]);
+  re = /importScripts\s*\(\s*["']([^"']+)["']/gi;
+  while ((m = re.exec(text))) out.push(m[1]);
+  return out.map(function (u) { return u.trim(); })
+    .filter(function (u) { return /^(?:https?:)?\/\//i.test(u); });
+}
+
+/* Every URL the page merely LINKS to. Kept as its own assertion so the anchors
+ * are counted out loud instead of quietly passing as "nothing". */
+function linksTo(text) {
+  var out = [], m, re = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi;
+  while ((m = re.exec(text))) out.push(m[1].trim());
+  return out.filter(function (u) { return /^(?:https?:)?\/\//i.test(u); });
+}
+
 /* ---------------------------------------------------------------- fixtures */
 
 // 64x48, quality 80, Make=ForgeCam Model=TestBody, GPS 19°4'N 72°52'E.
@@ -428,10 +463,14 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   ok("the page works on a phone", html.indexOf('name="viewport"') >= 0);
   ok("the page never calls fetch", html.indexOf("fetch(") < 0);
   ok("the page never opens an XHR", !/XMLHttpRequest/.test(html));
-  var external = (html.match(/https?:\/\/[^"'\s)]+/g) || []).filter(function (u) {
+  var external = loadsFrom(html).filter(function (u) {
     return !/w3\.org|schema\.org/.test(u);
   });
   eq("the page loads nothing from the network", external, []);
+  var anchors = linksTo(html);
+  ok("the page's support block is anchors, not loads", anchors.length >= 3 && anchors.every(function (u) {
+    return loadsFrom(html).indexOf(u) < 0;
+  }), anchors.join(" "));
   ok("the page says the photos never leave the device", /never leaves|stays on (your|the) device|nothing is uploaded/i.test(html));
   var appSrc = fs.readFileSync(path.join(dir, "app.js"), "utf8");
   ok("the page can be driven by name, for the landing page's demo", /ImageToolkit\s*=\s*\{/.test(appSrc) && /demo:\s*demo/.test(appSrc));
@@ -456,7 +495,7 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   eq("and every one of them exists on disk", wanted.filter(function (b) {
     return !fs.existsSync(path.join(__dirname, "docs", b));
   }), []);
-  var fromNetwork = (page.match(/https?:\/\/[^"'\s)]+/g) || []).filter(function (u) {
+  var fromNetwork = loadsFrom(page).filter(function (u) {
     return !/drsamonline\.github\.io|github\.com|w3\.org|schema\.org|ns\.adobe\.com|localhost|127\.0\.0\.1/.test(u);
   });
   eq("the landing page loads nothing from the network either", fromNetwork, []);
@@ -481,7 +520,7 @@ var res = T.budget(500000, function (q) { calls++; return enc(q); }, { steps: 6 
   shipped.forEach(function (file) {
     var text = fs.readFileSync(file, "utf8");
     var name = path.basename(file);
-    var urls = (text.match(/https?:\/\/[^"'\s)]+/g) || []).filter(function (u) {
+    var urls = loadsFrom(text).filter(function (u) {
       return !/drsamonline\.github\.io|github\.com|w3\.org|schema\.org|ns\.adobe\.com|localhost|127\.0\.0\.1/.test(u);
     });
     if (urls.length) offenders.push(name + ": " + urls.join(" "));
