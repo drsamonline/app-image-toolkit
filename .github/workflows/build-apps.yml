@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   app:
-    uses: drsamonline/app-builder/.github/workflows/build.yml@0464e3304fcb096c59574188ea6f68abca015786   # was @main; 34fa725 predates the launcher-icon step, which the APK job needs
+    uses: drsamonline/app-builder/.github/workflows/build.yml@bbef0db943e11f1a280ac8a063b79e66b7f6d9db   # was @main; 34fa725 predates the launcher-icon step, which the APK job needs
     with:
       app_name: app-image-toolkit
       app_src: docs/play
