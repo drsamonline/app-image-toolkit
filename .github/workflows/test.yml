@@ -39,6 +39,13 @@ jobs:
             || { echo "::error::VERSION and the shipped files disagree — run scripts/version.py and commit"; exit 1; }
           python3 scripts/bundle.py
 
+      - name: The badges, and the alt text beside them, say what the suite printed
+        run: |
+          set -euo pipefail
+          python3 scripts/badges.py
+          git diff --exit-code -- docs/assets README.md docs/index.html \
+            || { echo "::error::a badge or its alt text is stale — run python3 scripts/badges.py and commit"; exit 1; }
+
       - name: The app in a browser
         run: |
           set -euo pipefail

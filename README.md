@@ -4,7 +4,7 @@
 
 <p>
   <a href="https://drsamonline.github.io/app-image-toolkit/"><img alt="live: online" src="docs/assets/badge-live.svg"></a>
-  <a href="https://github.com/drsamonline/app-image-toolkit/actions/workflows/test.yml"><img alt="tests: 162 passing" src="docs/assets/badge-tests.svg"></a>
+  <a href="https://github.com/drsamonline/app-image-toolkit/actions/workflows/test.yml"><img alt="tests: 207 passing" src="docs/assets/badge-tests.svg"></a>
   <a href="https://github.com/drsamonline/app-image-toolkit/actions/workflows/build-apps.yml"><img alt="build: green" src="docs/assets/badge-build.svg"></a>
   <a href="LICENSE"><img alt="licence: PolyForm NC 1.0.0" src="docs/assets/badge-licence.svg"></a>
   <img alt="offline: no network" src="docs/assets/badge-offline.svg">

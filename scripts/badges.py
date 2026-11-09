@@ -35,8 +35,32 @@ def test_count():
     return int(match.group(1))
 
 
+LOAD_PATTERNS = (
+    r"""\b(?:src|srcset|poster)\s*=\s*["']([^"']+)["']""",
+    r"""<link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>""",
+    r"""url\(\s*["']?([^"')]+)["']?\s*\)""",
+    r"""@import\s+(?:url\(\s*)?["']([^"']+)["']""",
+    r"""importScripts\s*\(\s*["']([^"']+)["']""",
+)
+
+
+def loads_from(text):
+    """What the browser FETCHES on its own — the same rule test-node.js applies.
+
+    src / srcset / poster, a <link href>, a CSS url(), @import, a worker's
+    importScripts. An <a href> is somewhere the reader may choose to go, and an
+    anchor is not a dependency. Counting anchors is what made this badge read
+    "3 runtime" on a repository whose headline is *no runtime dependency*: the
+    three were Ko-fi, PayPal and the bookstore, in the support block.
+    """
+    out = []
+    for pattern in LOAD_PATTERNS:
+        out.extend(re.findall(pattern, text, re.I))
+    return [u.strip() for u in out if re.match(r"^(?:https?:)?//", u.strip(), re.I)]
+
+
 def runtime_deps():
-    """Runtime dependencies, counted: external references plus a package manifest.
+    """Runtime dependencies, counted: what the app loads plus a package manifest.
 
     An offline-first app that needs the network to describe itself has broken
     its own rule, so this number is computed from the files that ship.
@@ -49,7 +73,13 @@ def runtime_deps():
             continue
         with open(os.path.join(play, name), encoding="utf-8") as fh:
             text = fh.read()
-        for url in re.findall(r"https?://[^\"'\s)]+", text):
+        # sw.js is the one file allowed to call fetch: it answers from its own cache
+        if name != "sw.js":
+            if re.search(r"\bfetch\s*\(", text):
+                count += 1
+            if "XMLHttpRequest" in text:
+                count += 1
+        for url in loads_from(text):
             if re.search(r"w3\.org|schema\.org|ns\.adobe\.com|drsamonline\.github\.io|github\.com", url):
                 continue          # namespaces and links, not loads
             count += 1
@@ -75,6 +105,33 @@ def main():
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(badge(label, value, colour))
         print("wrote", path, "->", value)
+    write_alt_text(tests, deps)
+
+
+# The badge's number also appears in the `alt` text of the two pages that show
+# it. Written by hand it drifts: it said "tests: 162 passing" while the suite
+# printed 207, and "deps: 0 runtime" while the badge beside it said 3. Both are
+# written here from the same numbers as the badge, and CI diffs the result.
+ALT_FILES = ("README.md", os.path.join("docs", "index.html"))
+
+
+def write_alt_text(tests, deps):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    wanted = {
+        "tests": "tests: %s" % ("%d passing" % tests if tests else "see CI"),
+        "deps": "deps: %d runtime" % deps,
+    }
+    for rel in ALT_FILES:
+        path = os.path.join(root, rel)
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        before = text
+        for name, value in wanted.items():
+            text = re.sub(r'alt="(?:%s): [^"]*"' % name, 'alt="%s"' % value, text)
+        if text != before:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            print("wrote", path, "->", ", ".join(wanted.values()))
 
 CH = 6.6  # approximate advance width at 11px in a monospace-ish sans
 

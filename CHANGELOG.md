@@ -3,6 +3,21 @@
 Every entry names what changed and the assertion count at that tag. The count is
 the number `node test-node.js` printed, not an estimate.
 
+## Unreleased
+
+- **The tests badge, and the number in the alt text beside it, are computed from one
+  count — and CI now fails if any of them is stale.** They had drifted apart: the badge said
+  206, the README's alt text said 162, the landing page's said 84, and the suite printed 207.
+  `scripts/badges.py` writes the badge *and* the alt text in `README.md` and
+  `docs/index.html` from the same run, and a step in `test.yml` diffs the result.
+- **The deps badge stopped counting anchors as dependencies.** It reported "3 runtime" — Ko-fi,
+  PayPal and the bookstore, all `<a href>` in the support block — on a repository whose headline
+  is *no runtime dependency*. The count now uses the rule the offline test already applies: what
+  the browser fetches on its own (`src`, `srcset`, `poster`, `<link href>`, `url()`, `@import`,
+  `importScripts`, and `fetch`/`XMLHttpRequest` outside `sw.js`). It reads 0, which is the truth.
+
+207 assertions at this commit.
+
 ## 1.3.2 — 2026-11-01
 
 The release carries a fourth thing.
