@@ -396,6 +396,13 @@ python3 scripts/version.py             # one version, in every place it is writt
   .support-foot{margin:1.2rem 0 0;font-size:.8rem;color:var(--s-muted)}
   @media (prefers-reduced-motion:no-preference){.support-card{transition:border-color .15s ease}}
   .support-card:target,.support-card:focus-within{border-color:var(--s-accent)}
+
+/* ---- a11y: button contrast (measured, WCAG AA) ----------------------------
+   A button paired a surface token that flips with the theme with a text colour
+   that does not, so one mode rendered the label invisible. Each rule below
+   pins the pair. Ratios are from the rendered page, not from the source. */
+
+[data-theme="dark"] .btn.ghost{color:#f6efe6!important}          /* 1.01 -> 16.4 on #14120f */
 </style>
 
 <section class="support" id="support" aria-labelledby="support-h" data-support>
