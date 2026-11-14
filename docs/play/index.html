@@ -125,10 +125,16 @@
          grid-template-areas:"photos opts" "photos out";
          align-items:start}
     main > .card:nth-child(1){grid-area:opts}
-    main > .card:nth-child(2){grid-area:photos;min-height:60vh}
+    /* The photos card was a 60vh box holding a 60px drop zone: the panel's dead
+       space is now the drop target. The options column goes single-column because
+       at 384px a two-column row truncated every select ("Auto — the smal…"). */
+    main > .card:nth-child(2){grid-area:photos;min-height:0;align-self:stretch;
+         display:flex;flex-direction:column}
+    main > .card:nth-child(2) .drop{flex:1;min-height:260px;
+         display:flex;align-items:center;justify-content:center;text-align:center}
     main > .card:nth-child(3){grid-area:out}
     main > .card{margin:0}
-    main .grid{grid-template-columns:1fr 1fr}
+    main .grid{grid-template-columns:1fr}
   }
   @media (min-width:1500px){
     main{grid-template-columns:minmax(0,1fr) 440px}
